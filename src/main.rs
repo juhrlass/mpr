@@ -153,25 +153,19 @@ unsafe fn create_icon_with_coords(x_pos: u32, y_pos: u32) -> HICON {
     let y_positions = [4, 13];
 
     // Beide Zahlen zeichnen (X und Y Koordinate)
-    for (row_idx, number) in numbers_to_draw.iter().enumerate() {
-        // Jede Zahl in ihre einzelnen Ziffern aufteilen
-        let digits = [
-            (number / 1000) % 10,    // Tausender
-            (number / 100) % 10,     // Hunderter
-            (number / 10) % 10,      // Zehner
-            *number % 10,            // Einer
-        ];
+    for (row_idx, &number) in numbers_to_draw.iter().enumerate() {
         let start_y = y_positions[row_idx];
-
+        
         // Jede Ziffer einzeln zeichnen
-        for (i, &digit) in digits.iter().enumerate() {
-            let glyph = FONT[digit as usize];  // Font-Daten für die aktuelle Ziffer
-            let start_x = 1 + i as i32 * 6;   // X-Position für jede Ziffer (6 Pixel Abstand)
+        for i in 0..4 {
+            let digit_value = (number / 10_u32.pow(3 - i as u32)) % 10;
+            let glyph = FONT[digit_value as usize];
+            let start_x = 1 + i as i32 * 6;
 
             // Jeden Pixel der Ziffer zeichnen
             for (y, row) in glyph.iter().enumerate() {
                 for (x, &pixel) in row.iter().enumerate() {
-                    if pixel == 1 {  // Nur gefüllte Pixel zeichnen
+                    if pixel == 1 {
                         SetPixel(memdc, start_x + x as i32, start_y + y as i32, text_color);
                     }
                 }

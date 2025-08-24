@@ -60,7 +60,6 @@ fn main() {
             ..Default::default()
         };
 
-        // Erstes Icon erstellen und setzen
         CURRENT_ICON = create_icon_with_coords(0, 0);
         nid.hIcon = CURRENT_ICON;
         let tooltip_text: [u16; 13] = ['M', 'a', 'u', 's', 'p', 'o', 's', 'i', 't', 'i', 'o', 'n', '\0']
@@ -68,19 +67,18 @@ fn main() {
         let tip_ptr = std::ptr::addr_of_mut!(nid.szTip) as *mut u16;
         std::ptr::copy_nonoverlapping(tooltip_text.as_ptr(), tip_ptr, tooltip_text.len());
 
-        Shell_NotifyIconW(NIM_ADD, &mut nid);
-        SetTimer(hwnd, 1, 100, None); // Timer auf 100ms für flüssigere Updates
+        let _ = Shell_NotifyIconW(NIM_ADD, &mut nid);
+        SetTimer(hwnd, 1, 100, None);
 
         let mut msg = MSG::default();
         while GetMessageW(&mut msg, None, 0, 0).into() {
-            TranslateMessage(&msg);
+            let _ = TranslateMessage(&msg);
             DispatchMessageW(&msg);
         }
 
-        // Aufräumen
-        Shell_NotifyIconW(NIM_DELETE, &mut nid);
+        let _ = Shell_NotifyIconW(NIM_DELETE, &mut nid);
         if !CURRENT_ICON.is_invalid() {
-            DestroyIcon(CURRENT_ICON);
+            let _ = DestroyIcon(CURRENT_ICON);
         }
     }
 }
@@ -91,15 +89,12 @@ unsafe fn create_icon_with_coords(x_pos: u32, y_pos: u32) -> HICON {
     let bmp = CreateCompatibleBitmap(hdc, 24, 24);
     let old_bmp = SelectObject(memdc, bmp);
 
-    // Hintergrund schwarz malen
-    PatBlt(memdc, 0, 0, 24, 24, BLACKNESS);
+    let _ = PatBlt(memdc, 0, 0, 24, 24, BLACKNESS);
 
-    // Zahlen vorbereiten
     let numbers_to_draw = [x_pos % 10000, y_pos % 10000];
-    let text_color = COLORREF(0x0000FF00); // Leuchtendes Grün
+    let text_color = COLORREF(0x0000FF00);
 
-    // Vertikale Startpositionen
-    let y_positions = [4, 13]; // 4px padding, dann 7px (X) + 2px (gap)
+    let y_positions = [4, 13];
 
     for (row_idx, number) in numbers_to_draw.iter().enumerate() {
         let digits = [
@@ -110,10 +105,8 @@ unsafe fn create_icon_with_coords(x_pos: u32, y_pos: u32) -> HICON {
         ];
         let start_y = y_positions[row_idx];
 
-        // Zeichne jede Ziffer der Zahl
         for (i, &digit) in digits.iter().enumerate() {
             let glyph = FONT[digit as usize];
-            // Horizontale Position für Rechtsbündigkeit (1px Rand links)
             let start_x = 1 + i as i32 * 6;
 
             for (y, row) in glyph.iter().enumerate() {
@@ -130,8 +123,8 @@ unsafe fn create_icon_with_coords(x_pos: u32, y_pos: u32) -> HICON {
     let hicon = CreateIconIndirect(&mut ii).unwrap();
 
     SelectObject(memdc, old_bmp);
-    DeleteObject(bmp);
-    DeleteDC(memdc);
+    let _ = DeleteObject(bmp);
+    let _ = DeleteDC(memdc);
     ReleaseDC(None, hdc);
 
     hicon
@@ -142,12 +135,12 @@ extern "system" fn wndproc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM)
         match msg {
             WM_TIMER => {
                 let mut pt = POINT::default();
-                GetCursorPos(&mut pt);
+                let _ = GetCursorPos(&mut pt);
 
                 let new_icon = create_icon_with_coords(pt.x as u32, pt.y as u32);
 
                 if !CURRENT_ICON.is_invalid() {
-                    DestroyIcon(CURRENT_ICON);
+                    let _ = DestroyIcon(CURRENT_ICON);
                 }
                 CURRENT_ICON = new_icon;
 
@@ -158,7 +151,7 @@ extern "system" fn wndproc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM)
                     hIcon: CURRENT_ICON,
                     ..Default::default()
                 };
-                Shell_NotifyIconW(NIM_MODIFY, &mut nid);
+                let _ = Shell_NotifyIconW(NIM_MODIFY, &mut nid);
             }
             WM_DESTROY => {
                 PostQuitMessage(0);

@@ -6,7 +6,7 @@ fn main() {
 
         let mut res = winres::WindowsResource::new();
     // Hier den Pfad zu deiner ICO-Datei angeben
-    res.set_icon("assets/logo.ico");
+    res.set_icon("logo.ico");
     if let Err(e) = res.compile() {
         eprintln!("Fehler beim Kompilieren der Windows-Ressourcen: {}", e);
     }

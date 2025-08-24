@@ -41,9 +41,20 @@ const FONT: [[[u8; 5]; 7]; 10] = [
 // WM_USER + 1 is used as a custom message for tray icon events
 const TRAY_MESSAGE: u32 = WM_USER + 1;
 
+// Settings window constants
+const ID_UPDATE_RATE_SLIDER: i32 = 2001;
+const ID_FOREGROUND_COLOR_BUTTON: i32 = 2002;
+const ID_BACKGROUND_COLOR_BUTTON: i32 = 2003;
+const ID_AUTOSTART_CHECKBOX: i32 = 2004;
+const ID_APPLY_BUTTON: i32 = 2005;
+const ID_CANCEL_BUTTON: i32 = 2006;
+
 // Global variable for the current icon to release it later
 // Needed to avoid memory leaks when creating new icons
 static mut CURRENT_ICON: HICON = HICON(0 as *mut c_void);
+
+// Settings window handle
+static mut SETTINGS_HWND: HWND = HWND(std::ptr::null_mut());
 
 // Helper function for safe access to CURRENT_ICON
 unsafe fn get_current_icon() -> HICON {
@@ -55,71 +66,55 @@ unsafe fn set_current_icon(icon: HICON) {
     CURRENT_ICON = icon;
 }
 
-/// Main function of the program
-/// Creates a hidden window and a tray icon that displays the current mouse position
-fn main() {
+// Create settings window
+unsafe fn create_settings_window(hinstance: HINSTANCE) -> HWND {
+    let class_name = w!("MPR_Settings");
+    
+    // Register settings window class
+    let wc = WNDCLASSW {
+        lpfnWndProc: Some(settings_wndproc),
+        hInstance: hinstance.into(),
+        lpszClassName: class_name,
+        hbrBackground: HBRUSH(GetStockObject(WHITE_BRUSH).0),
+        ..Default::default()
+    };
+    RegisterClassW(&wc);
+    
+    // Create settings window
+    let hwnd = CreateWindowExW(
+        Default::default(),
+        class_name,
+        w!("Settings"),
+        WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX,
+        CW_USEDEFAULT, CW_USEDEFAULT, 400, 300,
+        None, None, hinstance, None,
+    ).unwrap();
+    
+    hwnd
+}
+
+// Settings window procedure
+extern "system" fn settings_wndproc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
     unsafe {
-        // Get module handle of the current application
-        let hinstance = GetModuleHandleW(None).unwrap();
-        
-        // Unique class name for the window
-        let class_name = w!("MPR");
-
-        // Register window class - defines the behavior of the window
-        let wc = WNDCLASSW {
-            lpfnWndProc: Some(wndproc),  // Pointer to window procedure
-            hInstance: hinstance.into(),  // Instance handle
-            lpszClassName: class_name,   // Class name
-            ..Default::default()          // Set all other fields to default values
-        };
-        RegisterClassW(&wc);
-
-        // Create hidden window (0x0 size, not displayed)
-        // The window is necessary to receive Windows messages
-        let hwnd = CreateWindowExW(
-            Default::default(), class_name, w!(""), WS_OVERLAPPEDWINDOW,
-            0, 0, 0, 0, None, None, hinstance, None,
-        ).unwrap();
-
-        // Prepare tray icon data structure
-        let mut nid = NOTIFYICONDATAW {
-            cbSize: size_of::<NOTIFYICONDATAW>() as u32,  // Size of the structure
-            hWnd: hwnd,                                    // Window handle for messages
-            uID: 1,                                        // Unique ID for the icon
-            uFlags: NIF_MESSAGE | NIF_ICON | NIF_TIP,     // Which fields are used
-            uCallbackMessage: TRAY_MESSAGE,                // Custom message
-            ..Default::default()
-        };
-
-        // Create initial icon with coordinates (0,0)
-        set_current_icon(create_icon_with_cursor_position(0, 0));
-        nid.hIcon = get_current_icon();
-        
-        // Set tooltip text for the tray icon
-        let tooltip_text = "Mouse Position";
-        let utf16_chars: Vec<u16> = tooltip_text.encode_utf16().collect();
-        nid.szTip[..utf16_chars.len()].copy_from_slice(&utf16_chars);
-
-        // Add tray icon to system tray
-        let _ = Shell_NotifyIconW(NIM_ADD, &mut nid);
-        
-        // Start timer to poll mouse position every 100ms
-        SetTimer(hwnd, 1, 100, None);
-
-        // Main message loop - processes all Windows messages
-        let mut msg = MSG::default();
-        while GetMessageW(&mut msg, None, 0, 0).into() {
-            let _ = TranslateMessage(&msg);    // Translate keyboard messages
-            DispatchMessageW(&msg);            // Forward message to window procedure
-        }
-
-        // Clean up: Remove tray icon and release icon
-        let _ = Shell_NotifyIconW(NIM_DELETE, &mut nid);
-        let current_icon = get_current_icon();
-        if !current_icon.is_invalid() {
-            let _ = DestroyIcon(current_icon);
+        match msg {
+            WM_CLOSE => {
+                // Close button clicked - destroy window
+                let _ = DestroyWindow(hwnd);
+                SETTINGS_HWND = HWND(std::ptr::null_mut());
+            }
+            
+            WM_DESTROY => {
+                // Window is destroyed
+                SETTINGS_HWND = HWND(std::ptr::null_mut());
+            }
+            
+            _ => {
+                // Forward all other messages to the standard window procedure
+                return DefWindowProcW(hwnd, msg, wparam, lparam);
+            }
         }
     }
+    LRESULT(0)  // Successfully processed
 }
 
 /// Creates a 24x24 pixel icon with the specified coordinates
@@ -280,8 +275,12 @@ extern "system" fn wndproc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM)
                         PostQuitMessage(0);
                     }
                     1002 => {
-                        // "Settings..." selected - not implemented yet
-                        // TODO: Implement settings window
+                        // "Settings..." selected - open settings window
+                        let hinstance = GetModuleHandleW(None).unwrap();
+                        let hwnd = create_settings_window(hinstance.into());
+                        let _ = ShowWindow(hwnd, SW_SHOW);
+                        let _ = SetForegroundWindow(hwnd);
+                        SETTINGS_HWND = hwnd;
                     }
                     _ => {
                         // Ignore other menu items
@@ -296,4 +295,71 @@ extern "system" fn wndproc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM)
         }
     }
     LRESULT(0)  // Successfully processed
+}
+
+/// Main function of the program
+/// Creates a hidden window and a tray icon that displays the current mouse position
+fn main() {
+    unsafe {
+        // Get module handle of the current application
+        let hinstance = GetModuleHandleW(None).unwrap();
+        
+        // Unique class name for the window
+        let class_name = w!("MPR");
+
+        // Register window class - defines the behavior of the window
+        let wc = WNDCLASSW {
+            lpfnWndProc: Some(wndproc),  // Pointer to window procedure
+            hInstance: hinstance.into(),  // Instance handle
+            lpszClassName: class_name,   // Class name
+            ..Default::default()          // Set all other fields to default values
+        };
+        RegisterClassW(&wc);
+
+        // Create hidden window (0x0 size, not displayed)
+        // The window is necessary to receive Windows messages
+        let hwnd = CreateWindowExW(
+            Default::default(), class_name, w!(""), WS_OVERLAPPEDWINDOW,
+            0, 0, 0, 0, None, None, hinstance, None,
+        ).unwrap();
+
+        // Prepare tray icon data structure
+        let mut nid = NOTIFYICONDATAW {
+            cbSize: size_of::<NOTIFYICONDATAW>() as u32,  // Size of the structure
+            hWnd: hwnd,                                    // Window handle for messages
+            uID: 1,                                        // Unique ID for the icon
+            uFlags: NIF_MESSAGE | NIF_ICON | NIF_TIP,     // Which fields are used
+            uCallbackMessage: TRAY_MESSAGE,                // Custom message
+            ..Default::default()
+        };
+
+        // Create initial icon with coordinates (0,0)
+        set_current_icon(create_icon_with_cursor_position(0, 0));
+        nid.hIcon = get_current_icon();
+        
+        // Set tooltip text for the tray icon
+        let tooltip_text = "Mouse Position";
+        let utf16_chars: Vec<u16> = tooltip_text.encode_utf16().collect();
+        nid.szTip[..utf16_chars.len()].copy_from_slice(&utf16_chars);
+
+        // Add tray icon to system tray
+        let _ = Shell_NotifyIconW(NIM_ADD, &mut nid);
+        
+        // Start timer to poll mouse position every 100ms
+        SetTimer(hwnd, 1, 100, None);
+
+        // Main message loop - processes all Windows messages
+        let mut msg = MSG::default();
+        while GetMessageW(&mut msg, None, 0, 0).into() {
+            let _ = TranslateMessage(&msg);    // Translate keyboard messages
+            DispatchMessageW(&msg);            // Forward message to window procedure
+        }
+
+        // Clean up: Remove tray icon and release icon
+        let _ = Shell_NotifyIconW(NIM_DELETE, &mut nid);
+        let current_icon = get_current_icon();
+        if !current_icon.is_invalid() {
+            let _ = DestroyIcon(current_icon);
+        }
+    }
 }

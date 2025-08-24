@@ -90,7 +90,7 @@ fn main() {
         };
 
         // Initiales Icon mit Koordinaten (0,0) erstellen
-        set_current_icon(create_icon_with_coords(0, 0));
+        set_current_icon(create_icon_with_cursor_position(0, 0));
         nid.hIcon = get_current_icon();
         
         // Tooltip-Text für das Tray-Icon setzen
@@ -129,7 +129,7 @@ fn main() {
 /// 
 /// # Returns
 /// * `HICON` - Handle auf das erstellte Icon
-unsafe fn create_icon_with_coords(x_pos: u32, y_pos: u32) -> HICON {
+unsafe fn create_icon_with_cursor_position(x_pos: u32, y_pos: u32) -> HICON {
     // Device Context für den Bildschirm abrufen
     let hdc = GetDC(None);
     
@@ -211,7 +211,7 @@ extern "system" fn wndproc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM)
                 let _ = GetCursorPos(&mut pt);
 
                 // Neues Icon mit aktuellen Koordinaten erstellen
-                let new_icon = create_icon_with_coords(pt.x as u32, pt.y as u32);
+                let new_icon = create_icon_with_cursor_position(pt.x as u32, pt.y as u32);
 
                 // Altes Icon freigeben, um Memory-Leaks zu vermeiden
                 let current_icon = get_current_icon();

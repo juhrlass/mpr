@@ -146,11 +146,11 @@ unsafe fn create_icon_with_cursor_position(x_pos: u32, y_pos: u32) -> HICON {
     // Koordinaten auf 4 Stellen begrenzen (0-9999)
     let numbers_to_draw = [x_pos % 10000, y_pos % 10000];
     
-    // Textfarbe: Grün (RGB: 0, 255, 0)
-    let text_color = COLORREF(0x0000FF00);
+    // Textfarbe: Eisblau (RGB: 173, 216, 230)
+    let text_color = COLORREF(0x00E6D8AD);
 
     // Y-Positionen für die beiden Zahlenzeilen
-    let y_positions = [4, 13];
+    let y_positions = [3, 14];
 
     // Beide Zahlen zeichnen (X und Y Koordinate)
     for (row_idx, &number) in numbers_to_draw.iter().enumerate() {

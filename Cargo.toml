@@ -5,6 +5,7 @@ edition = "2021"
 
 [profile.release]
 strip = true  # Automatically strip symbols from the binary.
+opt-level = "z"  # Optimize for size.
 
 [dependencies]
 windows = { version = "0.58", features = [

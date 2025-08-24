@@ -248,6 +248,7 @@ extern "system" fn wndproc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM)
                         
                         // Create popup menu
                         let hmenu = CreatePopupMenu().unwrap();
+                        let _ = AppendMenuW(hmenu, MF_STRING, 1002, w!("Settings..."));
                         let _ = AppendMenuW(hmenu, MF_STRING, 1001, w!("Exit"));
                         
                         // Bring window to foreground (important for menu display)
@@ -277,6 +278,10 @@ extern "system" fn wndproc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM)
                     1001 => {
                         // "Exit" selected - terminate program
                         PostQuitMessage(0);
+                    }
+                    1002 => {
+                        // "Settings..." selected - not implemented yet
+                        // TODO: Implement settings window
                     }
                     _ => {
                         // Ignore other menu items

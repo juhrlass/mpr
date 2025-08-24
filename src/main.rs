@@ -1,3 +1,5 @@
+#![windows_subsystem = "windows"]
+
 // Import der notwendigen Standard-Bibliotheken
 use std::ffi::c_void;
 use std::mem::size_of;

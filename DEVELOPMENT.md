@@ -125,68 +125,68 @@ cargo check
 ### Build-Ausgabe
 
 - **Debug**: `target/debug/mpr.exe` (größer, langsamer, Debug-Informationen)
-- **Release**: `target/release/mpr.exe` (kleiner, schneller, optimiert)
+- **Release**: `target/release/mpr.exe` (smaller, faster, optimized)
 
-### Abhängigkeiten
+### Dependencies
 
-Das Projekt benötigt:
+The project requires:
 
-1. **Rust Toolchain**: Rust 1.70+ mit Cargo
-2. **Windows SDK**: Für Windows-API-Header
-3. **Build-Tools**: Visual Studio Build Tools (optional)
+1. **Rust Toolchain**: Rust 1.70+ with Cargo
+2. **Windows SDK**: For Windows API headers
+3. **Build Tools**: Visual Studio Build Tools (optional)
 
-## Entwicklungsumgebung
+## Development Environment
 
-### Empfohlene Tools
+### Recommended Tools
 
-- **IDE**: Visual Studio Code mit Rust-Erweiterung
-- **Debugger**: Windows Debugger oder Visual Studio
-- **Build-Tools**: Cargo (kommt mit Rust)
+- **IDE**: Visual Studio Code with Rust extension
+- **Debugger**: Windows Debugger or Visual Studio
+- **Build Tools**: Cargo (comes with Rust)
 
 ### Debugging
 
 ```bash
-# Debug-Version mit Logging
+# Debug version with logging
 cargo run
 
-# Release-Version testen
+# Test release version
 cargo run --release
 
-# Spezifische Cargo-Features
+# Specific Cargo features
 cargo run --features debug
 ```
 
-### Häufige Build-Probleme
+### Common Build Issues
 
-1. **Windows-API nicht gefunden**: Überprüfen Sie die Features in `Cargo.toml`
-2. **Manifest-Fehler**: Stellen Sie sicher, dass `build.rs` korrekt konfiguriert ist
-3. **Linker-Fehler**: Überprüfen Sie die Windows SDK-Installation
+1. **Windows API not found**: Check the features in `Cargo.toml`
+2. **Manifest error**: Make sure `build.rs` is correctly configured
+3. **Linker error**: Check Windows SDK installation
 
-## Erweiterungen
+## Extensions
 
-### Neue Features hinzufügen
+### Adding New Features
 
-1. **Neue Windows-API**: Feature in `Cargo.toml` hinzufügen
-2. **Zusätzliche Abhängigkeiten**: In `[dependencies]` eintragen
-3. **Build-Skript erweitern**: `build.rs` für neue Ressourcen anpassen
+1. **New Windows API**: Add feature to `Cargo.toml`
+2. **Additional dependencies**: Add to `[dependencies]`
+3. **Extend build script**: Adapt `build.rs` for new resources
 
-### Beispiel: Neues Feature
+### Example: New Feature
 
 ```toml
 [dependencies]
-serde = "1.0"                    # JSON-Serialisierung
-serde_json = "1.0"              # JSON-Parsing
+serde = "1.0"                    # JSON serialization
+serde_json = "1.0"              # JSON parsing
 ```
 
-### Beispiel: Build-Skript erweitern
+### Example: Extend Build Script
 
 ```rust
 // build.rs
 fn main() {
-    // Manifest einbetten
+    // Embed manifest
     embed_manifest::embed_manifest_file("Contoso.Sample.manifest");
     
-    // Zusätzliche Build-Schritte
+    // Additional build steps
     if cfg!(target_os = "windows") {
         println!("cargo:rustc-link-search=native=lib");
     }
@@ -195,32 +195,32 @@ fn main() {
 
 ## Deployment
 
-### Standalone-Executable
+### Standalone Executable
 
-Die Release-Version ist eine eigenständige .exe-Datei:
+The release version is a standalone .exe file:
 
-- **Keine externen DLLs** erforderlich (außer Windows-System-DLLs)
-- **Manifest eingebettet** für bessere Windows-Integration
-- **Minimale Größe** durch Release-Optimierungen
+- **No external DLLs** required (except Windows system DLLs)
+- **Manifest embedded** for better Windows integration
+- **Minimal size** through release optimizations
 
-### Verteilung
+### Distribution
 
-1. **Release-Build** erstellen: `cargo build --release`
-2. **Executable kopieren** aus `target/release/`
-3. **Keine zusätzlichen Dateien** erforderlich
-4. **Portabel** - funktioniert auf anderen Windows-Systemen
+1. **Create release build**: `cargo build --release`
+2. **Copy executable** from `target/release/`
+3. **No additional files** required
+4. **Portable** - works on other Windows systems
 
-## Performance-Optimierungen
+## Performance Optimizations
 
-### Release-Build
+### Release Build
 
-- **LTO**: Link Time Optimization aktiviert
-- **Code-Optimierung**: Rust-Compiler-Optimierungen
-- **Stripping**: Debug-Symbole entfernt
-- **Inlining**: Funktionen werden inline eingefügt
+- **LTO**: Link Time Optimization enabled
+- **Code optimization**: Rust compiler optimizations
+- **Stripping**: Debug symbols removed
+- **Inlining**: Functions are inlined
 
-### Runtime-Optimierungen
+### Runtime Optimizations
 
-- **Timer-Intervall**: 100ms Update-Rate (ausgewogen zwischen Performance und Aktualität)
-- **Memory-Management**: Effiziente Icon-Freigabe
-- **Windows-API**: Direkte API-Aufrufe ohne Abstraktionsschichten
+- **Timer interval**: 100ms update rate (balanced between performance and accuracy)
+- **Memory management**: Efficient icon cleanup
+- **Windows API**: Direct API calls without abstraction layers

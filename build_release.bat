@@ -1,8 +1,8 @@
 @echo off
 setlocal
 
-:: Setze den Namen deiner Executable hier.
-:: Cargo verwendet standardmäßig den Paketnamen.
+:: Set the name of your executable here.
+:: Cargo uses the package name by default.
 set "EXECUTABLE_NAME=mpr.exe"
 set "ICON_NAME=logo.ico"
 
@@ -11,11 +11,11 @@ cargo clean
 
 echo [2/3] Building the release binary...
 
-:: Führe den normalen Cargo-Build aus.
+:: Execute the normal Cargo build.
 cargo build --release
 
-:: Überprüfe, ob der Build erfolgreich war.
-:: %errorlevel% ist der Exit-Code des letzten Befehls. 0 bedeutet Erfolg.
+:: Check if the build was successful.
+:: %errorlevel% is the exit code of the last command. 0 means success.
 if %errorlevel% neq 0 (
     echo.
     echo [ERROR] Cargo build failed. Aborting script.
@@ -24,17 +24,17 @@ if %errorlevel% neq 0 (
 
 echo [3/3] Attaching the icon with rcedit...
 
-:: Der Pfad zur fertigen EXE-Datei
+:: The path to the finished EXE file
 set "EXE_PATH=target\release\%EXECUTABLE_NAME%"
 
-:: Überprüfe, ob die EXE-Datei existiert
+:: Check if the EXE file exists
 if not exist "%EXE_PATH%" (
     echo.
     echo [ERROR] Could not find the executable at "%EXE_PATH%".
     exit /b 1
 )
 
-:: Führe rcedit auf die gerade erstellte EXE aus.
+:: Execute rcedit on the just created EXE.
 rcedit "%EXE_PATH%" --set-icon "%ICON_NAME%"
 
 if %errorlevel% neq 0 (

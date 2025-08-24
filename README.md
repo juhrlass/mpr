@@ -1,77 +1,77 @@
 # MPR - Mouse Position Reader
 
-Ein Windows-Tray-Tool, das die aktuelle Mausposition in Echtzeit anzeigt.
+A Windows tray tool that displays the current mouse position in real-time.
 
-## Was macht es?
+## What does it do?
 
-MPR ist ein kleines, effizientes Tool, das im System-Tray läuft und kontinuierlich die aktuelle Mausposition überwacht. Das Tray-Icon zeigt die X- und Y-Koordinaten der Maus als grüne Zahlen auf schwarzem Hintergrund an.
+MPR is a small, efficient tool that runs in the system tray and continuously monitors the current mouse position. The tray icon displays the X and Y coordinates of the mouse as green numbers on a black background.
 
 ## Features
 
-- **Echtzeit-Überwachung**: Aktualisiert die Mausposition alle 100ms
-- **Tray-Integration**: Läuft im Hintergrund ohne sichtbares Fenster
-- **Visuelle Anzeige**: Zeigt Koordinaten direkt im Tray-Icon an
-- **Rechtsklick-Menü**: Einfaches Beenden über das Kontextmenü
-- **Ressourcenschonend**: Minimaler Speicherverbrauch und CPU-Last
+- **Real-time monitoring**: Updates mouse position every 100ms
+- **Tray integration**: Runs in the background without visible window
+- **Visual display**: Shows coordinates directly in the tray icon
+- **Right-click menu**: Simple exit via context menu
+- **Resource efficient**: Minimal memory usage and CPU load
 
-## Verwendung
+## Usage
 
 ### Installation
 
-1. Stellen Sie sicher, dass Rust installiert ist
-2. Klonen Sie das Repository
-3. Führen Sie `cargo build --release` aus
-4. Die ausführbare Datei befindet sich in `target/release/mpr.exe`
+1. Make sure Rust is installed
+2. Clone the repository
+3. Run `cargo build --release`
+4. The executable is located in `target/release/mpr.exe`
 
-### Bedienung
+### Operation
 
-1. **Starten**: Führen Sie `mpr.exe` aus
-2. **Tray-Icon**: Das Tool erscheint als kleines Icon im System-Tray
-3. **Koordinaten ablesen**: Die obere Zeile zeigt X, die untere Y-Koordinate
-4. **Beenden**: Rechtsklick auf das Tray-Icon → "Beenden"
+1. **Start**: Run `mpr.exe`
+2. **Tray icon**: The tool appears as a small icon in the system tray
+3. **Read coordinates**: The top line shows X, the bottom line Y coordinate
+4. **Exit**: Right-click on the tray icon → "Exit"
 
-### Koordinaten-Format
+### Coordinate Format
 
-- **X-Koordinate**: Obere Zeile (0-9999)
-- **Y-Koordinate**: Untere Zeile (0-9999)
-- **Aktualisierung**: Alle 100 Millisekunden
-- **Anzeige**: 4-stellige Zahlen in grüner Schrift auf schwarzem Grund
+- **X-coordinate**: Top line (0-9999)
+- **Y-coordinate**: Bottom line (0-9999)
+- **Update**: Every 100 milliseconds
+- **Display**: 4-digit numbers in green text on black background
 
-## Technische Details
+## Technical Details
 
-- **Sprache**: Rust
-- **Windows-API**: Native Win32-API über das `windows-rs` Crate
-- **Icon-Größe**: 24x24 Pixel
-- **Font**: Eigenes 5x7 Pixel Bitmap-Font
-- **Nachrichtenverarbeitung**: Windows-Nachrichtenschleife mit Timer
+- **Language**: Rust
+- **Windows API**: Native Win32 API via the `windows-rs` crate
+- **Icon size**: 24x24 pixels
+- **Font**: Custom 5x7 pixel bitmap font
+- **Message processing**: Windows message loop with timer
 
-## Systemanforderungen
+## System Requirements
 
-- Windows 10 oder höher
-- Keine zusätzlichen Abhängigkeiten
-- Minimaler Speicherverbrauch (~1-2 MB)
+- Windows 10 or higher
+- No additional dependencies
+- Minimal memory usage (~1-2 MB)
 
-## Entwicklung
+## Development
 
-Für Entwickler siehe [DEVELOPMENT.md](DEVELOPMENT.md) für Details zur Build-Konfiguration und dem Manifest-System.
+For developers, see [DEVELOPMENT.md](DEVELOPMENT.md) for details on build configuration and the manifest system.
 
-## Lizenz
+## License
 
-Dieses Projekt ist für den privaten Gebrauch bestimmt.
+This project is intended for private use.
 
-## Bekannte Einschränkungen
+## Known Limitations
 
-- Koordinaten werden auf 4 Stellen begrenzt (0-9999)
-- Funktioniert nur unter Windows
-- Keine Konfigurationsmöglichkeiten
-- Keine Persistierung der Einstellungen
+- Coordinates are limited to 4 digits (0-9999)
+- Only works under Windows
+- No configuration options
+- No persistence of settings
 
-## Fehlerbehebung
+## Troubleshooting
 
-**Tray-Icon erscheint nicht**: Überprüfen Sie, ob das Tool als Administrator läuft
-**Programm startet nicht**: Stellen Sie sicher, dass alle Windows-Updates installiert sind
-**Hohe CPU-Last**: Das Tool aktualisiert alle 100ms - dies ist normal
+**Tray icon doesn't appear**: Check if the tool is running as administrator
+**Program won't start**: Make sure all Windows updates are installed
+**High CPU load**: The tool updates every 100ms - this is normal
 
 ## Support
 
-Bei Problemen oder Fragen erstellen Sie bitte ein Issue im Repository.
+For problems or questions, please create an issue in the repository.

@@ -1,119 +1,119 @@
 #![windows_subsystem = "windows"]
 
-// Import der notwendigen Standard-Bibliotheken
+// Import of necessary standard libraries
 use std::ffi::c_void;
 use std::mem::size_of;
 
-// Import der Windows-spezifischen Funktionen und Strukturen
-use windows::core::w;  // Makro für Wide-String-Literale
-use windows::Win32::Foundation::*;  // Grundlegende Windows-Typen
-use windows::Win32::Graphics::Gdi::*;  // Graphics Device Interface für Icon-Erstellung
-use windows::Win32::System::LibraryLoader::GetModuleHandleW;  // Modul-Handle abrufen
-use windows::Win32::UI::Shell::*;  // Shell-Funktionen für Tray-Icons
-use windows::Win32::UI::WindowsAndMessaging::*;  // Fenster- und Nachrichtenbehandlung
+// Import of Windows-specific functions and structures
+use windows::core::w;  // Macro for wide string literals
+use windows::Win32::Foundation::*;  // Basic Windows types
+use windows::Win32::Graphics::Gdi::*;  // Graphics Device Interface for icon creation
+use windows::Win32::System::LibraryLoader::GetModuleHandleW;  // Get module handle
+use windows::Win32::UI::Shell::*;  // Shell functions for tray icons
+use windows::Win32::UI::WindowsAndMessaging::*;  // Window and message handling
 
-// Ein 5x7 Pixel Bitmap-Font für die Ziffern 0-9
-// Jede Ziffer wird als 2D-Array von Pixeln definiert (0 = leer, 1 = gefüllt)
+// A 5x7 pixel bitmap font for digits 0-9
+// Each digit is defined as a 2D array of pixels (0 = empty, 1 = filled)
 const FONT: [[[u8; 5]; 7]; 10] = [
-    // 0 - Oben und unten offen, Seiten geschlossen
+    // 0 - Open at top and bottom, closed at sides
     [[0,1,1,1,0], [1,0,0,0,1], [1,0,0,0,1], [1,0,0,0,1], [1,0,0,0,1], [1,0,0,0,1], [0,1,1,1,0]],
-    // 1 - Einfache vertikale Linie mit kleinem Haken oben
+    // 1 - Simple vertical line with small hook at top
     [[0,0,1,0,0], [0,1,1,0,0], [0,0,1,0,0], [0,0,1,0,0], [0,0,1,0,0], [0,0,1,0,0], [0,1,1,1,0]],
-    // 2 - Oben geschlossen, unten offen, mit Kurve in der Mitte
+    // 2 - Closed at top, open at bottom, with curve in middle
     [[0,1,1,1,0], [1,0,0,0,1], [0,0,0,0,1], [0,0,1,1,0], [0,1,0,0,0], [1,0,0,0,0], [1,1,1,1,1]],
-    // 3 - Oben und unten geschlossen, mit Kurve in der Mitte
+    // 3 - Closed at top and bottom, with curve in middle
     [[1,1,1,1,0], [0,0,0,0,1], [0,0,0,1,0], [0,0,1,1,0], [0,0,0,0,1], [1,0,0,0,1], [0,1,1,1,0]],
-    // 4 - Links offen, rechts geschlossen, mit horizontaler Linie in der Mitte
+    // 4 - Open at left, closed at right, with horizontal line in middle
     [[0,0,0,1,0], [0,0,1,1,0], [0,1,0,1,0], [1,0,0,1,0], [1,1,1,1,1], [0,0,0,1,0], [0,0,0,1,0]],
-    // 5 - Oben offen, unten geschlossen, mit Kurve in der Mitte
+    // 5 - Open at top, closed at bottom, with curve in middle
     [[1,1,1,1,1], [1,0,0,0,0], [1,1,1,1,0], [0,0,0,0,1], [0,0,0,0,1], [1,0,0,0,1], [0,1,1,1,0]],
-    // 6 - Oben offen, unten geschlossen, mit Kurve in der Mitte
+    // 6 - Open at top, closed at bottom, with curve in middle
     [[0,0,1,1,0], [0,1,0,0,0], [1,0,0,0,0], [1,1,1,1,0], [1,0,0,0,1], [1,0,0,0,1], [0,1,1,1,0]],
-    // 7 - Oben geschlossen, unten offen, mit diagonalem Strich
+    // 7 - Closed at top, open at bottom, with diagonal stroke
     [[1,1,1,1,1], [0,0,0,0,1], [0,0,0,1,0], [0,0,1,0,0], [0,0,1,0,0], [0,0,1,0,0], [0,0,1,0,0]],
-    // 8 - Oben und unten geschlossen, mit Kurve in der Mitte
+    // 8 - Closed at top and bottom, with curve in middle
     [[0,1,1,1,0], [1,0,0,0,1], [1,0,0,0,1], [0,1,1,1,0], [1,0,0,0,1], [1,0,0,0,1], [0,1,1,1,0]],
-    // 9 - Oben geschlossen, unten offen, mit Kurve in der Mitte
+    // 9 - Closed at top, open at bottom, with curve in middle
     [[0,1,1,1,0], [1,0,0,0,1], [1,0,0,0,1], [0,1,1,1,1], [0,0,0,0,1], [0,0,1,0,0], [0,1,1,0,0]],
 ];
 
-// Konstante für Tray-Icon Nachrichten
-// WM_USER + 1 wird als benutzerdefinierte Nachricht für Tray-Icon-Events verwendet
+// Constant for tray icon messages
+// WM_USER + 1 is used as a custom message for tray icon events
 const TRAY_MESSAGE: u32 = WM_USER + 1;
 
-// Globale Variable für das aktuelle Icon, um es später freigeben zu können
-// Wird benötigt, um Memory-Leaks zu vermeiden, wenn neue Icons erstellt werden
+// Global variable for the current icon to release it later
+// Needed to avoid memory leaks when creating new icons
 static mut CURRENT_ICON: HICON = HICON(0 as *mut c_void);
 
-// Hilfsfunktion zum sicheren Zugriff auf CURRENT_ICON
+// Helper function for safe access to CURRENT_ICON
 unsafe fn get_current_icon() -> HICON {
     CURRENT_ICON
 }
 
-// Hilfsfunktion zum sicheren Setzen von CURRENT_ICON
+// Helper function for safe setting of CURRENT_ICON
 unsafe fn set_current_icon(icon: HICON) {
     CURRENT_ICON = icon;
 }
 
-/// Hauptfunktion des Programms
-/// Erstellt ein verstecktes Fenster und ein Tray-Icon, das die aktuelle Mausposition anzeigt
+/// Main function of the program
+/// Creates a hidden window and a tray icon that displays the current mouse position
 fn main() {
     unsafe {
-        // Modul-Handle der aktuellen Anwendung abrufen
+        // Get module handle of the current application
         let hinstance = GetModuleHandleW(None).unwrap();
         
-        // Eindeutiger Klassenname für das Fenster
+        // Unique class name for the window
         let class_name = w!("MPR");
 
-        // Fensterklasse registrieren - definiert das Verhalten des Fensters
+        // Register window class - defines the behavior of the window
         let wc = WNDCLASSW {
-            lpfnWndProc: Some(wndproc),  // Zeiger auf die Fensterprozedur
-            hInstance: hinstance.into(),  // Instanz-Handle
-            lpszClassName: class_name,   // Klassenname
-            ..Default::default()          // Alle anderen Felder auf Standardwerte setzen
+            lpfnWndProc: Some(wndproc),  // Pointer to window procedure
+            hInstance: hinstance.into(),  // Instance handle
+            lpszClassName: class_name,   // Class name
+            ..Default::default()          // Set all other fields to default values
         };
         RegisterClassW(&wc);
 
-        // Verstecktes Fenster erstellen (0x0 Größe, wird nicht angezeigt)
-        // Das Fenster ist notwendig, um Windows-Nachrichten zu empfangen
+        // Create hidden window (0x0 size, not displayed)
+        // The window is necessary to receive Windows messages
         let hwnd = CreateWindowExW(
             Default::default(), class_name, w!(""), WS_OVERLAPPEDWINDOW,
             0, 0, 0, 0, None, None, hinstance, None,
         ).unwrap();
 
-        // Tray-Icon-Datenstruktur vorbereiten
+        // Prepare tray icon data structure
         let mut nid = NOTIFYICONDATAW {
-            cbSize: size_of::<NOTIFYICONDATAW>() as u32,  // Größe der Struktur
-            hWnd: hwnd,                                    // Fenster-Handle für Nachrichten
-            uID: 1,                                        // Eindeutige ID für das Icon
-            uFlags: NIF_MESSAGE | NIF_ICON | NIF_TIP,     // Welche Felder verwendet werden
-            uCallbackMessage: TRAY_MESSAGE,                // Benutzerdefinierte Nachricht
+            cbSize: size_of::<NOTIFYICONDATAW>() as u32,  // Size of the structure
+            hWnd: hwnd,                                    // Window handle for messages
+            uID: 1,                                        // Unique ID for the icon
+            uFlags: NIF_MESSAGE | NIF_ICON | NIF_TIP,     // Which fields are used
+            uCallbackMessage: TRAY_MESSAGE,                // Custom message
             ..Default::default()
         };
 
-        // Initiales Icon mit Koordinaten (0,0) erstellen
+        // Create initial icon with coordinates (0,0)
         set_current_icon(create_icon_with_cursor_position(0, 0));
         nid.hIcon = get_current_icon();
         
-        // Tooltip-Text für das Tray-Icon setzen
-        let tooltip_text = "Mausposition";
+        // Set tooltip text for the tray icon
+        let tooltip_text = "Mouse Position";
         let utf16_chars: Vec<u16> = tooltip_text.encode_utf16().collect();
         nid.szTip[..utf16_chars.len()].copy_from_slice(&utf16_chars);
 
-        // Tray-Icon zum System-Tray hinzufügen
+        // Add tray icon to system tray
         let _ = Shell_NotifyIconW(NIM_ADD, &mut nid);
         
-        // Timer starten, der alle 100ms die Mausposition abfragt
+        // Start timer to poll mouse position every 100ms
         SetTimer(hwnd, 1, 100, None);
 
-        // Hauptnachrichtenschleife - verarbeitet alle Windows-Nachrichten
+        // Main message loop - processes all Windows messages
         let mut msg = MSG::default();
         while GetMessageW(&mut msg, None, 0, 0).into() {
-            let _ = TranslateMessage(&msg);    // Tastatur-Nachrichten übersetzen
-            DispatchMessageW(&msg);            // Nachricht an die Fensterprozedur weiterleiten
+            let _ = TranslateMessage(&msg);    // Translate keyboard messages
+            DispatchMessageW(&msg);            // Forward message to window procedure
         }
 
-        // Aufräumen: Tray-Icon entfernen und Icon freigeben
+        // Clean up: Remove tray icon and release icon
         let _ = Shell_NotifyIconW(NIM_DELETE, &mut nid);
         let current_icon = get_current_icon();
         if !current_icon.is_invalid() {
@@ -122,49 +122,49 @@ fn main() {
     }
 }
 
-/// Erstellt ein 24x24 Pixel Icon mit den angegebenen Koordinaten
-/// Die Koordinaten werden als 4-stellige Zahlen im Icon angezeigt
+/// Creates a 24x24 pixel icon with the specified coordinates
+/// The coordinates are displayed as 4-digit numbers in the icon
 /// 
 /// # Arguments
-/// * `x_pos` - X-Koordinate der Maus
-/// * `y_pos` - Y-Koordinate der Maus
+/// * `x_pos` - X-coordinate of the mouse
+/// * `y_pos` - Y-coordinate of the mouse
 /// 
 /// # Returns
-/// * `HICON` - Handle auf das erstellte Icon
+/// * `HICON` - Handle to the created icon
 unsafe fn create_icon_with_cursor_position(x_pos: u32, y_pos: u32) -> HICON {
-    // Device Context für den Bildschirm abrufen
+    // Get device context for the screen
     let hdc = GetDC(None);
     
-    // Kompatiblen Memory Device Context erstellen
+    // Create compatible memory device context
     let memdc = CreateCompatibleDC(hdc);
     
-    // 24x24 Bitmap erstellen
+    // Create 24x24 bitmap
     let bmp = CreateCompatibleBitmap(hdc, 24, 24);
     let old_bmp = SelectObject(memdc, bmp);
 
-    // Hintergrund schwarz färben
+    // Fill background black
     let _ = PatBlt(memdc, 0, 0, 24, 24, BLACKNESS);
 
-    // Koordinaten auf 4 Stellen begrenzen (0-9999)
+    // Limit coordinates to 4 digits (0-9999)
     let numbers_to_draw = [x_pos % 10000, y_pos % 10000];
     
-    // Textfarbe: Eisblau (RGB: 173, 216, 230)
+    // Text color: Light Blue (RGB: 173, 216, 230)
     let text_color = COLORREF(0x00E6D8AD);
 
-    // Y-Positionen für die beiden Zahlenzeilen
+    // Y-positions for the two number lines
     let y_positions = [3, 14];
 
-    // Beide Zahlen zeichnen (X und Y Koordinate)
+    // Draw both numbers (X and Y coordinate)
     for (row_idx, &number) in numbers_to_draw.iter().enumerate() {
         let start_y = y_positions[row_idx];
         
-        // Jede Ziffer einzeln zeichnen
+        // Draw each digit individually
         for i in 0..4 {
             let digit_value = (number / 10_u32.pow(3 - i as u32)) % 10;
             let glyph = FONT[digit_value as usize];
             let start_x = 1 + i as i32 * 6;
 
-            // Jeden Pixel der Ziffer zeichnen
+            // Draw each pixel of the digit
             for (y, row) in glyph.iter().enumerate() {
                 for (x, &pixel) in row.iter().enumerate() {
                     if pixel == 1 {
@@ -175,16 +175,16 @@ unsafe fn create_icon_with_cursor_position(x_pos: u32, y_pos: u32) -> HICON {
         }
     }
 
-    // Icon aus dem Bitmap erstellen
+    // Create icon from bitmap
     let mut ii = ICONINFO { 
-        fIcon: true.into(),     // Es ist ein Icon (nicht ein Cursor)
-        hbmMask: bmp,           // Mask-Bitmap
-        hbmColor: bmp,          // Farb-Bitmap
+        fIcon: true.into(),     // It's an icon (not a cursor)
+        hbmMask: bmp,           // Mask bitmap
+        hbmColor: bmp,          // Color bitmap
         ..Default::default() 
     };
     let hicon = CreateIconIndirect(&mut ii).unwrap();
 
-    // Ressourcen aufräumen
+    // Clean up resources
     SelectObject(memdc, old_bmp);
     let _ = DeleteObject(bmp);
     let _ = DeleteDC(memdc);
@@ -193,40 +193,40 @@ unsafe fn create_icon_with_cursor_position(x_pos: u32, y_pos: u32) -> HICON {
     hicon
 }
 
-/// Fensterprozedur - verarbeitet alle Nachrichten für das Fenster
-/// Diese Funktion wird von Windows aufgerufen, wenn Nachrichten ankommen
+/// Window procedure - processes all messages for the window
+/// This function is called by Windows when messages arrive
 /// 
 /// # Arguments
-/// * `hwnd` - Handle auf das Fenster
-/// * `msg` - Nachrichten-ID
-/// * `wparam` - Zusätzlicher Parameter 1
-/// * `lparam` - Zusätzlicher Parameter 2
+/// * `hwnd` - Handle to the window
+/// * `msg` - Message ID
+/// * `wparam` - Additional parameter 1
+/// * `lparam` - Additional parameter 2
 /// 
 /// # Returns
-/// * `LRESULT` - Ergebnis der Nachrichtenverarbeitung
+/// * `LRESULT` - Result of message processing
 extern "system" fn wndproc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
     unsafe {
         match msg {
             WM_TIMER => {
-                // Timer-Nachricht alle 100ms - Mausposition abfragen und Icon aktualisieren
+                // Timer message every 100ms - poll mouse position and update icon
                 let mut pt = POINT::default();
                 let _ = GetCursorPos(&mut pt);
 
-                // Neues Icon mit aktuellen Koordinaten erstellen
+                // Create new icon with current coordinates
                 let new_icon = create_icon_with_cursor_position(pt.x as u32, pt.y as u32);
 
-                // Altes Icon freigeben, um Memory-Leaks zu vermeiden
+                // Release old icon to avoid memory leaks
                 let current_icon = get_current_icon();
                 if !current_icon.is_invalid() {
                     let _ = DestroyIcon(current_icon);
                 }
                 set_current_icon(new_icon);
 
-                // Tray-Icon mit dem neuen Icon aktualisieren
+                // Update tray icon with the new icon
                 let mut nid = NOTIFYICONDATAW {
                     cbSize: size_of::<NOTIFYICONDATAW>() as u32,
                     hWnd: hwnd, uID: 1,
-                    uFlags: NIF_ICON,  // Nur das Icon aktualisieren
+                    uFlags: NIF_ICON,  // Only update icon
                     hIcon: get_current_icon(),
                     ..Default::default()
                 };
@@ -234,61 +234,61 @@ extern "system" fn wndproc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM)
             }
             
             WM_DESTROY => {
-                // Fenster wird zerstört - Programm beenden
+                // Window is destroyed - terminate program
                 PostQuitMessage(0);
             }
             
             TRAY_MESSAGE => {
-                // Benutzerdefinierte Nachricht vom Tray-Icon
+                // Custom message from tray icon
                 match lparam.0 as u32 {
                     WM_RBUTTONUP => {
-                        // Rechtsklick auf Tray-Icon - Kontextmenü anzeigen
+                        // Right-click on tray icon - show context menu
                         let mut pt = POINT::default();
                         let _ = GetCursorPos(&mut pt);
                         
-                        // Popup-Menü erstellen
+                        // Create popup menu
                         let hmenu = CreatePopupMenu().unwrap();
-                        let _ = AppendMenuW(hmenu, MF_STRING, 1001, w!("Beenden"));
+                        let _ = AppendMenuW(hmenu, MF_STRING, 1001, w!("Exit"));
                         
-                        // Fenster in den Vordergrund bringen (wichtig für Menü-Anzeige)
+                        // Bring window to foreground (important for menu display)
                         let _ = SetForegroundWindow(hwnd);
                         
-                        // Menü an der aktuellen Mausposition anzeigen
+                        // Display menu at current mouse position
                         let _ = TrackPopupMenu(hmenu, TPM_LEFTALIGN | TPM_RIGHTBUTTON, pt.x, pt.y, 0, hwnd, None);
                         
-                        // Menü aufräumen
+                        // Clean up menu
                         let _ = DestroyMenu(hmenu);
                     }
                     
                     WM_LBUTTONUP => {
-                        // Linksklick auf Tray-Icon (optional: Fenster anzeigen/verstecken)
-                        // Aktuell nicht implementiert
+                        // Left-click on tray icon (optional: show/hide window)
+                        // Currently not implemented
                     }
                     
                     _ => {
-                        // Andere Maus-Events ignorieren
+                        // Ignore other mouse events
                     }
                 }
             }
             
             WM_COMMAND => {
-                // Menü-Auswahl verarbeiten
+                // Process menu selection
                 match wparam.0 as u32 {
                     1001 => {
-                        // "Beenden" wurde ausgewählt - Programm beenden
+                        // "Exit" selected - terminate program
                         PostQuitMessage(0);
                     }
                     _ => {
-                        // Andere Menüpunkte ignorieren
+                        // Ignore other menu items
                     }
                 }
             }
             
             _ => {
-                // Alle anderen Nachrichten an die Standard-Fensterprozedur weiterleiten
+                // Forward all other messages to the standard window procedure
                 return DefWindowProcW(hwnd, msg, wparam, lparam);
             }
         }
     }
-    LRESULT(0)  // Erfolgreich verarbeitet
+    LRESULT(0)  // Successfully processed
 }

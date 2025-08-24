@@ -1,5 +1,4 @@
 use embed_manifest::{embed_manifest, new_manifest};
-use std::process::Command;
 
 fn main() {
     if std::env::var_os("CARGO_CFG_WINDOWS").is_some() {

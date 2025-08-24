@@ -60,7 +60,7 @@ Die `build.rs` Datei wird während des Build-Prozesses ausgeführt und dient zur
 ```rust
 fn main() {
     // Manifest in die ausführbare Datei einbetten
-    embed_manifest::embed_manifest_file("Contoso.Sample.manifest");
+    embed_manifest::embed_manifest_file("mpr.manifest");
     
     // Build-Informationen an Cargo weitergeben
     println!("cargo:rerun-if-changed=Contoso.Sample.manifest");

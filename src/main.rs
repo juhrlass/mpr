@@ -31,6 +31,9 @@ const FONT: [[[u8; 5]; 7]; 10] = [
     [[0,1,1,1,0], [1,0,0,0,1], [1,0,0,0,1], [0,1,1,1,1], [0,0,0,0,1], [0,0,1,0,0], [0,1,1,0,0]],
 ];
 
+// Konstante für Tray-Icon Nachrichten
+const TRAY_MESSAGE: u32 = WM_USER + 1;
+
 // Globale Variable für das aktuelle Icon, um es später freigeben zu können
 static mut CURRENT_ICON: HICON = HICON(0 as *mut c_void);
 
@@ -56,7 +59,7 @@ fn main() {
             cbSize: size_of::<NOTIFYICONDATAW>() as u32,
             hWnd: hwnd, uID: 1,
             uFlags: NIF_MESSAGE | NIF_ICON | NIF_TIP,
-            uCallbackMessage: WM_USER + 1,
+            uCallbackMessage: TRAY_MESSAGE,
             ..Default::default()
         };
 
@@ -155,6 +158,36 @@ extern "system" fn wndproc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM)
             }
             WM_DESTROY => {
                 PostQuitMessage(0);
+            }
+            TRAY_MESSAGE => {
+                // Tray-Icon Nachricht
+                match lparam.0 as u32 {
+                    WM_RBUTTONUP => {
+                        // Rechtsklick auf Tray-Icon - Kontextmenü anzeigen
+                        let mut pt = POINT::default();
+                        let _ = GetCursorPos(&mut pt);
+                        
+                        let hmenu = CreatePopupMenu().unwrap();
+                        let _ = AppendMenuW(hmenu, MF_STRING, 1001, w!("Beenden"));
+                        
+                        let _ = SetForegroundWindow(hwnd);
+                        let _ = TrackPopupMenu(hmenu, TPM_LEFTALIGN | TPM_RIGHTBUTTON, pt.x, pt.y, 0, hwnd, None);
+                        let _ = DestroyMenu(hmenu);
+                    }
+                    WM_LBUTTONUP => {
+                        // Linksklick auf Tray-Icon (optional: Fenster anzeigen/verstecken)
+                    }
+                    _ => {}
+                }
+            }
+            WM_COMMAND => {
+                match wparam.0 as u32 {
+                    1001 => {
+                        // "Beenden" wurde ausgewählt
+                        PostQuitMessage(0);
+                    }
+                    _ => {}
+                }
             }
             _ => return DefWindowProcW(hwnd, msg, wparam, lparam),
         }

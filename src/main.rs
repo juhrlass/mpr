@@ -94,9 +94,9 @@ fn main() {
         nid.hIcon = get_current_icon();
         
         // Tooltip-Text für das Tray-Icon setzen
-        let tooltip_text = "Mausposition\0";
-        let _tip_ptr = std::ptr::addr_of_mut!(nid.szTip) as *mut u16;
-        std::ptr::copy_nonoverlapping(tooltip_text.encode_utf16().collect::<Vec<u16>>().as_ptr(), _tip_ptr, tooltip_text.encode_utf16().count());
+        let tooltip_text = "Mausposition";
+        let utf16_chars: Vec<u16> = tooltip_text.encode_utf16().collect();
+        nid.szTip[..utf16_chars.len()].copy_from_slice(&utf16_chars);
 
         // Tray-Icon zum System-Tray hinzufügen
         let _ = Shell_NotifyIconW(NIM_ADD, &mut nid);

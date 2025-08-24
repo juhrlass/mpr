@@ -43,6 +43,16 @@ const TRAY_MESSAGE: u32 = WM_USER + 1;
 // Wird benötigt, um Memory-Leaks zu vermeiden, wenn neue Icons erstellt werden
 static mut CURRENT_ICON: HICON = HICON(0 as *mut c_void);
 
+// Hilfsfunktion zum sicheren Zugriff auf CURRENT_ICON
+unsafe fn get_current_icon() -> HICON {
+    CURRENT_ICON
+}
+
+// Hilfsfunktion zum sicheren Setzen von CURRENT_ICON
+unsafe fn set_current_icon(icon: HICON) {
+    CURRENT_ICON = icon;
+}
+
 /// Hauptfunktion des Programms
 /// Erstellt ein verstecktes Fenster und ein Tray-Icon, das die aktuelle Mausposition anzeigt
 fn main() {
@@ -80,14 +90,14 @@ fn main() {
         };
 
         // Initiales Icon mit Koordinaten (0,0) erstellen
-        CURRENT_ICON = create_icon_with_coords(0, 0);
-        nid.hIcon = CURRENT_ICON;
+        set_current_icon(create_icon_with_coords(0, 0));
+        nid.hIcon = get_current_icon();
         
         // Tooltip-Text für das Tray-Icon setzen
         let tooltip_text: [u16; 13] = ['M', 'a', 'u', 's', 'p', 'o', 's', 'i', 't', 'i', 'o', 'n', '\0']
             .map(|c| c as u16);
-        let tip_ptr = std::ptr::addr_of_mut!(nid.szTip) as *mut u16;
-        std::ptr::copy_nonoverlapping(tooltip_text.as_ptr(), tip_ptr, tooltip_text.len());
+        let _tip_ptr = std::ptr::addr_of_mut!(nid.szTip) as *mut u16;
+        std::ptr::copy_nonoverlapping(tooltip_text.as_ptr(), _tip_ptr, tooltip_text.len());
 
         // Tray-Icon zum System-Tray hinzufügen
         let _ = Shell_NotifyIconW(NIM_ADD, &mut nid);
@@ -104,8 +114,9 @@ fn main() {
 
         // Aufräumen: Tray-Icon entfernen und Icon freigeben
         let _ = Shell_NotifyIconW(NIM_DELETE, &mut nid);
-        if !CURRENT_ICON.is_invalid() {
-            let _ = DestroyIcon(CURRENT_ICON);
+        let current_icon = get_current_icon();
+        if !current_icon.is_invalid() {
+            let _ = DestroyIcon(current_icon);
         }
     }
 }
@@ -210,17 +221,18 @@ extern "system" fn wndproc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM)
                 let new_icon = create_icon_with_coords(pt.x as u32, pt.y as u32);
 
                 // Altes Icon freigeben, um Memory-Leaks zu vermeiden
-                if !CURRENT_ICON.is_invalid() {
-                    let _ = DestroyIcon(CURRENT_ICON);
+                let current_icon = get_current_icon();
+                if !current_icon.is_invalid() {
+                    let _ = DestroyIcon(current_icon);
                 }
-                CURRENT_ICON = new_icon;
+                set_current_icon(new_icon);
 
                 // Tray-Icon mit dem neuen Icon aktualisieren
                 let mut nid = NOTIFYICONDATAW {
                     cbSize: size_of::<NOTIFYICONDATAW>() as u32,
                     hWnd: hwnd, uID: 1,
                     uFlags: NIF_ICON,  // Nur das Icon aktualisieren
-                    hIcon: CURRENT_ICON,
+                    hIcon: get_current_icon(),
                     ..Default::default()
                 };
                 let _ = Shell_NotifyIconW(NIM_MODIFY, &mut nid);

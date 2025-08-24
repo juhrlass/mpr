@@ -61,7 +61,7 @@ fn main() {
         let hinstance = GetModuleHandleW(None).unwrap();
         
         // Eindeutiger Klassenname für das Fenster
-        let class_name = w!("TrayMousePos");
+        let class_name = w!("MPR");
 
         // Fensterklasse registrieren - definiert das Verhalten des Fensters
         let wc = WNDCLASSW {
@@ -94,10 +94,9 @@ fn main() {
         nid.hIcon = get_current_icon();
         
         // Tooltip-Text für das Tray-Icon setzen
-        let tooltip_text: [u16; 13] = ['M', 'a', 'u', 's', 'p', 'o', 's', 'i', 't', 'i', 'o', 'n', '\0']
-            .map(|c| c as u16);
+        let tooltip_text = "Mausposition\0";
         let _tip_ptr = std::ptr::addr_of_mut!(nid.szTip) as *mut u16;
-        std::ptr::copy_nonoverlapping(tooltip_text.as_ptr(), _tip_ptr, tooltip_text.len());
+        std::ptr::copy_nonoverlapping(tooltip_text.encode_utf16().collect::<Vec<u16>>().as_ptr(), _tip_ptr, tooltip_text.encode_utf16().count());
 
         // Tray-Icon zum System-Tray hinzufügen
         let _ = Shell_NotifyIconW(NIM_ADD, &mut nid);

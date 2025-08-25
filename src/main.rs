@@ -25,12 +25,14 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Serialize, Deserialize)]
 struct Config {
     text_color: u32, // COLORREF as u32
+    background_color: u32, // COLORREF as u32
 }
 
 impl Default for Config {
     fn default() -> Self {
         Config {
             text_color: 0x00E6D8AD, // Default color from original code
+            background_color: 0x00000000, // Default transparent background
         }
     }
 }
@@ -121,13 +123,17 @@ const TRAY_MESSAGE: u32 = WM_USER + 1;
 const MENU_ID_EXIT: u32 = 1001;
 const MENU_ID_SETTINGS: u32 = 1002;
 const ID_COLOR_BUTTON: isize = 2001;
+const ID_BACKGROUND_COLOR_BUTTON: isize = 2002;
 
 /// Global variables
 static mut CURRENT_ICON: HICON = HICON(null_mut());
 static mut SETTINGS_HWND: HWND = HWND(null_mut());
 static mut CURRENT_TEXT_COLOR: COLORREF = COLORREF(0x00E6D8AD);
+static mut CURRENT_BACKGROUND_COLOR: COLORREF = COLORREF(0x00000000);
 static mut COLOR_BUTTON_BRUSH: HBRUSH = HBRUSH(null_mut());
+static mut BACKGROUND_COLOR_BUTTON_BRUSH: HBRUSH = HBRUSH(null_mut());
 static mut COLOR_BUTTON_HWND: HWND = HWND(null_mut());
+static mut BACKGROUND_COLOR_BUTTON_HWND: HWND = HWND(null_mut());
 static mut CONFIG: Option<Config> = None;
 
 /// Helper functions
@@ -140,6 +146,19 @@ static mut CONFIG: Option<Config> = None;
     // Update config and save to file
     if let Some(config) = &mut CONFIG {
         config.text_color = color.0;
+        if let Err(e) = save_config(config) {
+            eprintln!("Failed to save config: {}", e);
+        }
+    }
+}
+
+#[inline] unsafe fn get_current_background_color() -> COLORREF { CURRENT_BACKGROUND_COLOR }
+#[inline] unsafe fn set_current_background_color(color: COLORREF) { 
+    CURRENT_BACKGROUND_COLOR = color; 
+    
+    // Update config and save to file
+    if let Some(config) = &mut CONFIG {
+        config.background_color = color.0;
         if let Err(e) = save_config(config) {
             eprintln!("Failed to save config: {}", e);
         }
@@ -163,28 +182,50 @@ unsafe fn create_settings_window(hinstance: HINSTANCE) -> Result<HWND, windows::
     let hwnd = CreateWindowExW(
         Default::default(), class_name, w!("Settings"),
         WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX,
-        CW_USEDEFAULT, CW_USEDEFAULT, 400, 300,
+        CW_USEDEFAULT, CW_USEDEFAULT, 400, 350,
         None, None, Some(hinstance), None,
     )?;
 
-    let _label_hwnd = CreateWindowExW(
+    // Text Color Label (above the indicator)
+    let _text_label_hwnd = CreateWindowExW(
         Default::default(), w!("STATIC"), w!("Text Color:"),
         WS_CHILD | WS_VISIBLE, 20, 30, 100, 20,
         Some(hwnd), None, Some(hinstance), None,
     );
 
-    let color_button_hwnd = CreateWindowExW(
+    // Text Color Button
+    let text_color_button_hwnd = CreateWindowExW(
         Default::default(),
         w!("STATIC"),
         w!(""),
         WINDOW_STYLE(WS_CHILD.0 | WS_VISIBLE.0 | WS_BORDER.0 | 0x100), // SS_NOTIFY
-        130, 25, 50, 30,
+        130, 55, 50, 30,
         Some(hwnd),
         Some(HMENU(ID_COLOR_BUTTON as *mut c_void)),
         Some(hinstance), None,
     )?;
 
-    COLOR_BUTTON_HWND = color_button_hwnd;
+    // Background Color Label (above the indicator)
+    let _background_label_hwnd = CreateWindowExW(
+        Default::default(), w!("STATIC"), w!("Background Color:"),
+        WS_CHILD | WS_VISIBLE, 20, 100, 120, 20,
+        Some(hwnd), None, Some(hinstance), None,
+    );
+
+    // Background Color Button
+    let background_color_button_hwnd = CreateWindowExW(
+        Default::default(),
+        w!("STATIC"),
+        w!(""),
+        WINDOW_STYLE(WS_CHILD.0 | WS_VISIBLE.0 | WS_BORDER.0 | 0x100), // SS_NOTIFY
+        130, 125, 50, 30,
+        Some(hwnd),
+        Some(HMENU(ID_BACKGROUND_COLOR_BUTTON as *mut c_void)),
+        Some(hinstance), None,
+    )?;
+
+    COLOR_BUTTON_HWND = text_color_button_hwnd;
+    BACKGROUND_COLOR_BUTTON_HWND = background_color_button_hwnd;
 
     Ok(hwnd)
 }
@@ -196,6 +237,9 @@ extern "system" fn settings_wndproc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam
             WM_CLOSE => {
                 if !COLOR_BUTTON_BRUSH.is_invalid() {
                     let _ = DeleteObject(COLOR_BUTTON_BRUSH.into()); // GEÄNDERT
+                }
+                if !BACKGROUND_COLOR_BUTTON_BRUSH.is_invalid() {
+                    let _ = DeleteObject(BACKGROUND_COLOR_BUTTON_BRUSH.into());
                 }
                 let _ = DestroyWindow(hwnd); // GEÄNDERT
                 SETTINGS_HWND = HWND(null_mut());
@@ -221,7 +265,21 @@ extern "system" fn settings_wndproc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam
                     };
                     if ChooseColorW(&mut cc).as_bool() {
                         set_current_text_color(cc.rgbResult);
-                        let _ = InvalidateRect(Some(hwnd), None, true); // GEÄNDERT
+                        let _ = InvalidateRect(Some(hwnd), None, true);
+                    }
+                } else if control_id == ID_BACKGROUND_COLOR_BUTTON {
+                    static mut CUSTOM_COLORS: [COLORREF; 16] = [COLORREF(0); 16];
+                    let mut cc = CHOOSECOLORW {
+                        lStructSize: size_of::<CHOOSECOLORW>() as u32,
+                        hwndOwner: hwnd,
+                        rgbResult: get_current_background_color(),
+                        lpCustColors: CUSTOM_COLORS.as_mut_ptr(),
+                        Flags: CC_FULLOPEN | CC_RGBINIT,
+                        ..Default::default()
+                    };
+                    if ChooseColorW(&mut cc).as_bool() {
+                        set_current_background_color(cc.rgbResult);
+                        let _ = InvalidateRect(Some(hwnd), None, true);
                     }
                 }
                 LRESULT(0)
@@ -230,10 +288,16 @@ extern "system" fn settings_wndproc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam
             WM_CTLCOLORSTATIC => {
                 if lparam.0 as isize == COLOR_BUTTON_HWND.0 as isize {
                     if !COLOR_BUTTON_BRUSH.is_invalid() {
-                        let _ = DeleteObject(COLOR_BUTTON_BRUSH.into()); // GEÄNDERT
+                        let _ = DeleteObject(COLOR_BUTTON_BRUSH.into());
                     }
                     COLOR_BUTTON_BRUSH = CreateSolidBrush(get_current_text_color());
                     return LRESULT(COLOR_BUTTON_BRUSH.0 as isize);
+                } else if lparam.0 as isize == BACKGROUND_COLOR_BUTTON_HWND.0 as isize {
+                    if !BACKGROUND_COLOR_BUTTON_BRUSH.is_invalid() {
+                        let _ = DeleteObject(BACKGROUND_COLOR_BUTTON_BRUSH.into());
+                    }
+                    BACKGROUND_COLOR_BUTTON_BRUSH = CreateSolidBrush(get_current_background_color());
+                    return LRESULT(BACKGROUND_COLOR_BUTTON_BRUSH.0 as isize);
                 }
                 DefWindowProcW(hwnd, msg, wparam, lparam)
             }
@@ -262,7 +326,17 @@ unsafe fn create_icon_with_cursor_position(x_pos: u32, y_pos: u32) -> Result<HIC
     }
 
     let old_bmp = SelectObject(memdc, bmp.into());
+    let background_color = get_current_background_color();
     let _ = PatBlt(memdc, 0, 0, 24, 24, BLACKNESS);
+
+    // Fill background with configured background color
+    if background_color.0 != 0 {
+        let background_brush = CreateSolidBrush(background_color);
+        if !background_brush.is_invalid() {
+            let _ = FillRect(memdc, &RECT { left: 0, top: 0, right: 24, bottom: 24 }, background_brush);
+            let _ = DeleteObject(background_brush.into());
+        }
+    }
 
     let numbers_to_draw = [x_pos % 10000, y_pos % 10000];
     let text_color = get_current_text_color();
@@ -389,6 +463,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         
         // Set current text color from config
         CURRENT_TEXT_COLOR = COLORREF(CONFIG.as_ref().unwrap().text_color);
+        CURRENT_BACKGROUND_COLOR = COLORREF(CONFIG.as_ref().unwrap().background_color);
         
         let hinstance = GetModuleHandleW(None)?;
         let class_name = w!("MPR");

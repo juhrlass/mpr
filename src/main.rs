@@ -78,13 +78,13 @@ unsafe fn create_settings_window(hinstance: HINSTANCE) -> Result<HWND, windows::
         Default::default(), class_name, w!("Settings"),
         WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX,
         CW_USEDEFAULT, CW_USEDEFAULT, 400, 300,
-        None, None, hinstance, None,
+        None, None, Some(hinstance), None,
     )?;
 
     let _label_hwnd = CreateWindowExW(
         Default::default(), w!("STATIC"), w!("Text Color:"),
         WS_CHILD | WS_VISIBLE, 20, 30, 100, 20,
-        hwnd, None, hinstance, None,
+        Some(hwnd), None, Some(hinstance), None,
     );
 
     let color_button_hwnd = CreateWindowExW(
@@ -93,9 +93,9 @@ unsafe fn create_settings_window(hinstance: HINSTANCE) -> Result<HWND, windows::
         w!(""),
         WINDOW_STYLE(WS_CHILD.0 | WS_VISIBLE.0 | WS_BORDER.0 | 0x100), // SS_NOTIFY
         130, 25, 50, 30,
-        hwnd,
-        HMENU(ID_COLOR_BUTTON as *mut c_void),
-        hinstance, None,
+        Some(hwnd),
+        Some(HMENU(ID_COLOR_BUTTON as *mut c_void)),
+        Some(hinstance), None,
     )?;
 
     COLOR_BUTTON_HWND = color_button_hwnd;
@@ -109,7 +109,7 @@ extern "system" fn settings_wndproc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam
         match msg {
             WM_CLOSE => {
                 if !COLOR_BUTTON_BRUSH.is_invalid() {
-                    let _ = DeleteObject(COLOR_BUTTON_BRUSH); // GEÄNDERT
+                    let _ = DeleteObject(COLOR_BUTTON_BRUSH.into()); // GEÄNDERT
                 }
                 let _ = DestroyWindow(hwnd); // GEÄNDERT
                 SETTINGS_HWND = HWND(null_mut());
@@ -135,7 +135,7 @@ extern "system" fn settings_wndproc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam
                     };
                     if ChooseColorW(&mut cc).as_bool() {
                         set_current_text_color(cc.rgbResult);
-                        let _ = InvalidateRect(hwnd, None, true); // GEÄNDERT
+                        let _ = InvalidateRect(Some(hwnd), None, true); // GEÄNDERT
                     }
                 }
                 LRESULT(0)
@@ -144,7 +144,7 @@ extern "system" fn settings_wndproc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam
             WM_CTLCOLORSTATIC => {
                 if lparam.0 as isize == COLOR_BUTTON_HWND.0 as isize {
                     if !COLOR_BUTTON_BRUSH.is_invalid() {
-                        let _ = DeleteObject(COLOR_BUTTON_BRUSH); // GEÄNDERT
+                        let _ = DeleteObject(COLOR_BUTTON_BRUSH.into()); // GEÄNDERT
                     }
                     COLOR_BUTTON_BRUSH = CreateSolidBrush(get_current_text_color());
                     return LRESULT(COLOR_BUTTON_BRUSH.0 as isize);
@@ -162,7 +162,7 @@ unsafe fn create_icon_with_cursor_position(x_pos: u32, y_pos: u32) -> Result<HIC
     let hdc = GetDC(None);
     if hdc.is_invalid() { return Err(windows::core::Error::from_win32()); }
 
-    let memdc = CreateCompatibleDC(hdc);
+    let memdc = CreateCompatibleDC(Some(hdc));
     if memdc.is_invalid() {
         ReleaseDC(None, hdc);
         return Err(windows::core::Error::from_win32());
@@ -175,7 +175,7 @@ unsafe fn create_icon_with_cursor_position(x_pos: u32, y_pos: u32) -> Result<HIC
         return Err(windows::core::Error::from_win32());
     }
 
-    let old_bmp = SelectObject(memdc, bmp);
+    let old_bmp = SelectObject(memdc, bmp.into());
     let _ = PatBlt(memdc, 0, 0, 24, 24, BLACKNESS);
 
     let numbers_to_draw = [x_pos % 10000, y_pos % 10000];
@@ -207,7 +207,7 @@ unsafe fn create_icon_with_cursor_position(x_pos: u32, y_pos: u32) -> Result<HIC
     let hicon = CreateIconIndirect(&mut ii)?;
 
     SelectObject(memdc, old_bmp);
-    let _ = DeleteObject(bmp);
+    let _ = DeleteObject(bmp.into());
     let _ = DeleteDC(memdc);
     let _ = ReleaseDC(None, hdc);
 
@@ -255,7 +255,7 @@ extern "system" fn wndproc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM)
                                 let _ = AppendMenuW(hmenu, MF_STRING, MENU_ID_SETTINGS as usize, w!("Settings..."));
                                 let _ = AppendMenuW(hmenu, MF_STRING, MENU_ID_EXIT as usize, w!("Exit"));
                                 let _ = SetForegroundWindow(hwnd);
-                                let _ = TrackPopupMenu(hmenu, TPM_LEFTALIGN | TPM_RIGHTBUTTON, pt.x, pt.y, 0, hwnd, None);
+                                let _ = TrackPopupMenu(hmenu, TPM_LEFTALIGN | TPM_RIGHTBUTTON, pt.x, pt.y, Some(0), hwnd, None);
                                 let _ = DestroyMenu(hmenu);
                             }
                         }
@@ -313,7 +313,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         let hwnd = CreateWindowExW(
             Default::default(), class_name, w!(""), WS_OVERLAPPED,
-            0, 0, 0, 0, None, None, hinstance, None,
+            0, 0, 0, 0, None, None, Some(hinstance.into()), None,
         )?;
 
         let mut nid = NOTIFYICONDATAW {
@@ -337,7 +337,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             return Err("Failed to add tray icon".into());
         }
 
-        if SetTimer(hwnd, 1, 100, None) == 0 {
+        if SetTimer(Some(hwnd), 1, 100, None) == 0 {
             return Err("Failed to set timer".into());
         }
 

@@ -5,6 +5,9 @@
 use std::ffi::c_void;
 use std::mem::size_of;
 use std::ptr::null_mut;
+use std::fs;
+use std::path::PathBuf;
+use std::env;
 
 // Import of Windows-specific functions and structures
 use windows::core::w;
@@ -14,6 +17,78 @@ use windows::Win32::System::LibraryLoader::GetModuleHandleW;
 use windows::Win32::UI::Controls::Dialogs::*;
 use windows::Win32::UI::Shell::*;
 use windows::Win32::UI::WindowsAndMessaging::*;
+
+// Serde imports for configuration
+use serde::{Deserialize, Serialize};
+
+/// Configuration structure
+#[derive(Debug, Serialize, Deserialize)]
+struct Config {
+    text_color: u32, // COLORREF as u32
+}
+
+impl Default for Config {
+    fn default() -> Self {
+        Config {
+            text_color: 0x00E6D8AD, // Default color from original code
+        }
+    }
+}
+
+/// Get the configuration file path in the user's home directory
+fn get_config_path() -> PathBuf {
+    let mut path = env::var("USERPROFILE")
+        .map(PathBuf::from)
+        .unwrap_or_else(|_| PathBuf::from("C:\\Users\\Public"));
+    
+    path.push(".mpr");
+    path.push("config.toml");
+    path
+}
+
+/// Load configuration from file, create with defaults if it doesn't exist
+fn load_config() -> Config {
+    let config_path = get_config_path();
+    
+    // Create .mpr directory if it doesn't exist
+    if let Some(parent) = config_path.parent() {
+        if !parent.exists() {
+            if let Err(e) = fs::create_dir_all(parent) {
+                eprintln!("Failed to create config directory: {}", e);
+                return Config::default();
+            }
+        }
+    }
+    
+    // Try to load existing config
+    match fs::read_to_string(&config_path) {
+        Ok(content) => {
+            match toml::from_str::<Config>(&content) {
+                Ok(config) => config,
+                Err(e) => {
+                    eprintln!("Failed to parse config file: {}", e);
+                    Config::default()
+                }
+            }
+        }
+        Err(_) => {
+            // Config file doesn't exist, create with defaults
+            let config = Config::default();
+            if let Err(e) = save_config(&config) {
+                eprintln!("Failed to save default config: {}", e);
+            }
+            config
+        }
+    }
+}
+
+/// Save configuration to file
+fn save_config(config: &Config) -> Result<(), Box<dyn std::error::Error>> {
+    let config_path = get_config_path();
+    let content = toml::to_string_pretty(config)?;
+    fs::write(config_path, content)?;
+    Ok(())
+}
 
 /// A 5x7 pixel bitmap font for digits 0-9
 const FONT: [[[u8; 5]; 7]; 10] = [
@@ -53,12 +128,23 @@ static mut SETTINGS_HWND: HWND = HWND(null_mut());
 static mut CURRENT_TEXT_COLOR: COLORREF = COLORREF(0x00E6D8AD);
 static mut COLOR_BUTTON_BRUSH: HBRUSH = HBRUSH(null_mut());
 static mut COLOR_BUTTON_HWND: HWND = HWND(null_mut());
+static mut CONFIG: Option<Config> = None;
 
 /// Helper functions
 #[inline] unsafe fn get_current_icon() -> HICON { CURRENT_ICON }
 #[inline] unsafe fn set_current_icon(icon: HICON) { CURRENT_ICON = icon; }
 #[inline] unsafe fn get_current_text_color() -> COLORREF { CURRENT_TEXT_COLOR }
-#[inline] unsafe fn set_current_text_color(color: COLORREF) { CURRENT_TEXT_COLOR = color; }
+#[inline] unsafe fn set_current_text_color(color: COLORREF) { 
+    CURRENT_TEXT_COLOR = color; 
+    
+    // Update config and save to file
+    if let Some(config) = &mut CONFIG {
+        config.text_color = color.0;
+        if let Err(e) = save_config(config) {
+            eprintln!("Failed to save config: {}", e);
+        }
+    }
+}
 
 /// Creates a settings window
 unsafe fn create_settings_window(hinstance: HINSTANCE) -> Result<HWND, windows::core::Error> {
@@ -297,6 +383,13 @@ extern "system" fn wndproc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM)
 /// Main function of the program
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     unsafe {
+        // Load configuration at startup
+        let config = load_config();
+        CONFIG = Some(config);
+        
+        // Set current text color from config
+        CURRENT_TEXT_COLOR = COLORREF(CONFIG.as_ref().unwrap().text_color);
+        
         let hinstance = GetModuleHandleW(None)?;
         let class_name = w!("MPR");
 

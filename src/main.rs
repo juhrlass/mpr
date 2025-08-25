@@ -6,15 +6,15 @@ use std::mem::size_of;
 use std::ptr::null_mut;
 
 // Import of Windows-specific functions and structures
-use windows::core::w; // KORREKTUR: PCWSTR entfernt, da ungenutzt
+use windows::core::w;
 use windows::Win32::Foundation::*;
 use windows::Win32::Graphics::Gdi::*;
 use windows::Win32::System::LibraryLoader::GetModuleHandleW;
+use windows::Win32::UI::Controls::Dialogs::*;
 use windows::Win32::UI::Shell::*;
 use windows::Win32::UI::WindowsAndMessaging::*;
-use windows::Win32::UI::Controls::Dialogs::*;
 
-// KORREKTUR 1: Vollständige Font-Daten wiederhergestellt
+/// A 5x7 pixel bitmap font for digits 0-9
 const FONT: [[[u8; 5]; 7]; 10] = [
     // 0
     [[0,1,1,1,0], [1,0,0,0,1], [1,0,0,0,1], [1,0,0,0,1], [1,0,0,0,1], [1,0,0,0,1], [0,1,1,1,0]],
@@ -53,7 +53,7 @@ static mut CURRENT_TEXT_COLOR: COLORREF = COLORREF(0x00E6D8AD);
 static mut COLOR_BUTTON_BRUSH: HBRUSH = HBRUSH(null_mut());
 static mut COLOR_BUTTON_HWND: HWND = HWND(null_mut());
 
-/// Helper functions (unverändert)
+/// Helper functions
 #[inline] unsafe fn get_current_icon() -> HICON { CURRENT_ICON }
 #[inline] unsafe fn set_current_icon(icon: HICON) { CURRENT_ICON = icon; }
 #[inline] unsafe fn get_current_text_color() -> COLORREF { CURRENT_TEXT_COLOR }
@@ -87,8 +87,12 @@ unsafe fn create_settings_window(hinstance: HINSTANCE) -> Result<HWND, windows::
     );
 
     let color_button_hwnd = CreateWindowExW(
-        Default::default(), w!("BUTTON"), w!(""),
-        WS_CHILD | WS_VISIBLE, 130, 25, 50, 30,
+        Default::default(),
+        w!("STATIC"),
+        w!(""),
+        // KORREKTUR: Verwenden des direkten Hex-Wertes für SS_NOTIFY
+        WINDOW_STYLE(WS_CHILD.0 | WS_VISIBLE.0 | WS_BORDER.0 | 0x100),
+        130, 25, 50, 30,
         hwnd,
         HMENU(ID_COLOR_BUTTON as *mut c_void),
         hinstance, None,
@@ -138,13 +142,12 @@ extern "system" fn settings_wndproc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam
                 LRESULT(0)
             }
 
-            WM_CTLCOLORBTN => {
+            WM_CTLCOLORSTATIC => {
                 if lparam.0 as isize == COLOR_BUTTON_HWND.0 as isize {
                     if !COLOR_BUTTON_BRUSH.is_invalid() {
                         DeleteObject(COLOR_BUTTON_BRUSH);
                     }
                     COLOR_BUTTON_BRUSH = CreateSolidBrush(get_current_text_color());
-                    // KORREKTUR 2: Caste den Zeiger zu isize für LRESULT
                     return LRESULT(COLOR_BUTTON_BRUSH.0 as isize);
                 }
                 DefWindowProcW(hwnd, msg, wparam, lparam)
@@ -212,7 +215,7 @@ unsafe fn create_icon_with_cursor_position(x_pos: u32, y_pos: u32) -> Result<HIC
     Ok(hicon)
 }
 
-/// Window procedure - processes all messages for the window
+/// Main window procedure
 extern "system" fn wndproc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
     unsafe {
         match msg {
@@ -270,12 +273,16 @@ extern "system" fn wndproc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM)
                         LRESULT(0)
                     }
                     MENU_ID_SETTINGS => {
-                        if let Ok(hinstance) = GetModuleHandleW(None) {
-                            if let Ok(hwnd) = create_settings_window(hinstance.into()) {
-                                let _ = ShowWindow(hwnd, SW_SHOW);
-                                let _ = SetForegroundWindow(hwnd);
-                                SETTINGS_HWND = hwnd;
+                        if SETTINGS_HWND.is_invalid() {
+                            if let Ok(hinstance) = GetModuleHandleW(None) {
+                                if let Ok(hwnd) = create_settings_window(hinstance.into()) {
+                                    let _ = ShowWindow(hwnd, SW_SHOW);
+                                    let _ = SetForegroundWindow(hwnd);
+                                    SETTINGS_HWND = hwnd;
+                                }
                             }
+                        } else {
+                            let _ = SetForegroundWindow(SETTINGS_HWND);
                         }
                         LRESULT(0)
                     }
@@ -306,7 +313,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
 
         let hwnd = CreateWindowExW(
-            Default::default(), class_name, w!(""), WS_OVERLAPPEDWINDOW,
+            Default::default(), class_name, w!(""), WS_OVERLAPPED,
             0, 0, 0, 0, None, None, hinstance, None,
         )?;
 

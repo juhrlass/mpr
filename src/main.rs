@@ -186,39 +186,39 @@ unsafe fn create_settings_window(hinstance: HINSTANCE) -> Result<HWND, windows::
         None, None, Some(hinstance), None,
     )?;
 
-    // Text Color Label (above the indicator)
+    // Text Color Label (left of the indicator)
     let _text_label_hwnd = CreateWindowExW(
         Default::default(), w!("STATIC"), w!("Text Color:"),
         WS_CHILD | WS_VISIBLE, 20, 30, 100, 20,
         Some(hwnd), None, Some(hinstance), None,
     );
 
-    // Text Color Button
+    // Text Color Button (right-aligned)
     let text_color_button_hwnd = CreateWindowExW(
         Default::default(),
         w!("STATIC"),
         w!(""),
         WINDOW_STYLE(WS_CHILD.0 | WS_VISIBLE.0 | WS_BORDER.0 | 0x100), // SS_NOTIFY
-        130, 55, 50, 30,
+        320, 25, 50, 30,
         Some(hwnd),
         Some(HMENU(ID_COLOR_BUTTON as *mut c_void)),
         Some(hinstance), None,
     )?;
 
-    // Background Color Label (above the indicator)
+    // Background Color Label (left of the indicator)
     let _background_label_hwnd = CreateWindowExW(
         Default::default(), w!("STATIC"), w!("Background Color:"),
-        WS_CHILD | WS_VISIBLE, 20, 100, 120, 20,
+        WS_CHILD | WS_VISIBLE, 20, 80, 120, 20,
         Some(hwnd), None, Some(hinstance), None,
     );
 
-    // Background Color Button
+    // Background Color Button (right-aligned)
     let background_color_button_hwnd = CreateWindowExW(
         Default::default(),
         w!("STATIC"),
         w!(""),
         WINDOW_STYLE(WS_CHILD.0 | WS_VISIBLE.0 | WS_BORDER.0 | 0x100), // SS_NOTIFY
-        130, 125, 50, 30,
+        320, 75, 50, 30,
         Some(hwnd),
         Some(HMENU(ID_BACKGROUND_COLOR_BUTTON as *mut c_void)),
         Some(hinstance), None,

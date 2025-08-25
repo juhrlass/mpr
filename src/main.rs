@@ -298,8 +298,17 @@ extern "system" fn settings_wndproc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam
                     }
                     BACKGROUND_COLOR_BUTTON_BRUSH = CreateSolidBrush(get_current_background_color());
                     return LRESULT(BACKGROUND_COLOR_BUTTON_BRUSH.0 as isize);
+                } else {
+                    // Make labels transparent by returning a transparent brush
+                    static mut TRANSPARENT_BRUSH: HBRUSH = HBRUSH(null_mut());
+                    if TRANSPARENT_BRUSH.is_invalid() {
+                        TRANSPARENT_BRUSH = CreateSolidBrush(COLORREF(0x00FFFFFF)); // Transparent white
+                    }
+                    // Set text color to black for good readability
+                    SetTextColor(HDC(wparam.0 as *mut c_void), COLORREF(0x00000000));
+                    SetBkMode(HDC(wparam.0 as *mut c_void), TRANSPARENT);
+                    return LRESULT(TRANSPARENT_BRUSH.0 as isize);
                 }
-                DefWindowProcW(hwnd, msg, wparam, lparam)
             }
 
             _ => DefWindowProcW(hwnd, msg, wparam, lparam),

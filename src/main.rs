@@ -11,6 +11,8 @@ use windows::Win32::Graphics::Gdi::*;  // Graphics Device Interface for icon cre
 use windows::Win32::System::LibraryLoader::GetModuleHandleW;  // Get module handle
 use windows::Win32::UI::Shell::*;  // Shell functions for tray icons
 use windows::Win32::UI::WindowsAndMessaging::*;  // Window and message handling
+use windows::Win32::UI::Controls::*;  // Common controls
+use windows::Win32::UI::Controls::Dialogs::*;  // Common dialogs including ChooseColor
 
 /// A 5x7 pixel bitmap font for digits 0-9
 /// Each digit is defined as a 2D array of pixels (0 = empty, 1 = filled)
@@ -52,6 +54,9 @@ static mut CURRENT_ICON: HICON = HICON(0 as *mut c_void);
 /// Settings window handle
 static mut SETTINGS_HWND: HWND = HWND(std::ptr::null_mut());
 
+/// Global variable for the current text color
+static mut CURRENT_TEXT_COLOR: COLORREF = COLORREF(0x00E6D8AD);
+
 /// Helper function for safe access to CURRENT_ICON
 #[inline]
 unsafe fn get_current_icon() -> HICON {
@@ -62,6 +67,25 @@ unsafe fn get_current_icon() -> HICON {
 #[inline]
 unsafe fn set_current_icon(icon: HICON) {
     CURRENT_ICON = icon;
+}
+
+/// Helper function for safe access to CURRENT_TEXT_COLOR
+#[inline]
+unsafe fn get_current_text_color() -> COLORREF {
+    CURRENT_TEXT_COLOR
+}
+
+/// Helper function for safe setting of CURRENT_TEXT_COLOR
+#[inline]
+unsafe fn set_current_text_color(color: COLORREF) {
+    CURRENT_TEXT_COLOR = color;
+}
+
+/// Helper function to get button rectangle
+unsafe fn get_button_rect(hwnd: HWND) -> RECT {
+    let mut rect = RECT::default();
+    GetClientRect(hwnd, &mut rect);
+    rect
 }
 
 /// Creates a settings window
@@ -99,6 +123,31 @@ unsafe fn create_settings_window(hinstance: HINSTANCE) -> Result<HWND, windows::
         CW_USEDEFAULT, CW_USEDEFAULT, 400, 300,
         None, None, hinstance, None,
     )?;
+    
+    // Create "Text Color" label
+    let label_hwnd = CreateWindowExW(
+        Default::default(),
+        w!("STATIC"),
+        w!("Text Color:"),
+        WS_CHILD | WS_VISIBLE,
+        20, 30, 100, 20,
+        hwnd, None, hinstance, None,
+    );
+    
+    // Create color preview button (clickable area)
+    let color_button_hwnd = CreateWindowExW(
+        Default::default(),
+        w!("BUTTON"),
+        w!(""),
+        WS_CHILD | WS_VISIBLE,
+        130, 25, 50, 30,
+        hwnd, None, hinstance, None,
+    )?;
+    
+    // Store the color button handle for later use
+    if !color_button_hwnd.is_invalid() {
+        SetWindowLongPtrW(color_button_hwnd, GWLP_USERDATA, color_button_hwnd.0 as isize);
+    }
     
     Ok(hwnd)
 }
@@ -181,8 +230,8 @@ unsafe fn create_icon_with_cursor_position(x_pos: u32, y_pos: u32) -> Result<HIC
     // Limit coordinates to 4 digits (0-9999)
     let numbers_to_draw = [x_pos % 10000, y_pos % 10000];
     
-    // Text color: Light Blue (RGB: 173, 216, 230)
-    let text_color = COLORREF(0x00E6D8AD);
+    // Text color: Use current global text color
+    let text_color = get_current_text_color();
 
     // Y-positions for the two number lines
     let y_positions = [3, 14];

@@ -1,4 +1,5 @@
 #![windows_subsystem = "windows"]
+#![allow(static_mut_refs)] // Diese Zeile unterdrückt die Warnungen für `static mut`
 
 // Import of necessary standard libraries
 use std::ffi::c_void;
@@ -90,8 +91,7 @@ unsafe fn create_settings_window(hinstance: HINSTANCE) -> Result<HWND, windows::
         Default::default(),
         w!("STATIC"),
         w!(""),
-        // KORREKTUR: Verwenden des direkten Hex-Wertes für SS_NOTIFY
-        WINDOW_STYLE(WS_CHILD.0 | WS_VISIBLE.0 | WS_BORDER.0 | 0x100),
+        WINDOW_STYLE(WS_CHILD.0 | WS_VISIBLE.0 | WS_BORDER.0 | 0x100), // SS_NOTIFY
         130, 25, 50, 30,
         hwnd,
         HMENU(ID_COLOR_BUTTON as *mut c_void),
@@ -109,10 +109,9 @@ extern "system" fn settings_wndproc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam
         match msg {
             WM_CLOSE => {
                 if !COLOR_BUTTON_BRUSH.is_invalid() {
-                    DeleteObject(COLOR_BUTTON_BRUSH);
-                    COLOR_BUTTON_BRUSH = HBRUSH(null_mut());
+                    let _ = DeleteObject(COLOR_BUTTON_BRUSH); // GEÄNDERT
                 }
-                DestroyWindow(hwnd);
+                let _ = DestroyWindow(hwnd); // GEÄNDERT
                 SETTINGS_HWND = HWND(null_mut());
                 LRESULT(0)
             }
@@ -136,7 +135,7 @@ extern "system" fn settings_wndproc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam
                     };
                     if ChooseColorW(&mut cc).as_bool() {
                         set_current_text_color(cc.rgbResult);
-                        InvalidateRect(hwnd, None, true);
+                        let _ = InvalidateRect(hwnd, None, true); // GEÄNDERT
                     }
                 }
                 LRESULT(0)
@@ -145,7 +144,7 @@ extern "system" fn settings_wndproc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam
             WM_CTLCOLORSTATIC => {
                 if lparam.0 as isize == COLOR_BUTTON_HWND.0 as isize {
                     if !COLOR_BUTTON_BRUSH.is_invalid() {
-                        DeleteObject(COLOR_BUTTON_BRUSH);
+                        let _ = DeleteObject(COLOR_BUTTON_BRUSH); // GEÄNDERT
                     }
                     COLOR_BUTTON_BRUSH = CreateSolidBrush(get_current_text_color());
                     return LRESULT(COLOR_BUTTON_BRUSH.0 as isize);

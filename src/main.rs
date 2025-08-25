@@ -12,8 +12,8 @@ use windows::Win32::System::LibraryLoader::GetModuleHandleW;  // Get module hand
 use windows::Win32::UI::Shell::*;  // Shell functions for tray icons
 use windows::Win32::UI::WindowsAndMessaging::*;  // Window and message handling
 
-// A 5x7 pixel bitmap font for digits 0-9
-// Each digit is defined as a 2D array of pixels (0 = empty, 1 = filled)
+/// A 5x7 pixel bitmap font for digits 0-9
+/// Each digit is defined as a 2D array of pixels (0 = empty, 1 = filled)
 const FONT: [[[u8; 5]; 7]; 10] = [
     // 0 - Open at top and bottom, closed at sides
     [[0,1,1,1,0], [1,0,0,0,1], [1,0,0,0,1], [1,0,0,0,1], [1,0,0,0,1], [1,0,0,0,1], [0,1,1,1,0]],
@@ -37,37 +37,44 @@ const FONT: [[[u8; 5]; 7]; 10] = [
     [[0,1,1,1,0], [1,0,0,0,1], [1,0,0,0,1], [0,1,1,1,1], [0,0,0,0,1], [0,0,1,0,0], [0,1,1,0,0]],
 ];
 
-// Constant for tray icon messages
-// WM_USER + 1 is used as a custom message for tray icon events
+/// Custom message ID for tray icon events
+/// WM_USER + 1 is used as a custom message for tray icon events
 const TRAY_MESSAGE: u32 = WM_USER + 1;
 
-// Settings window constants
-const ID_UPDATE_RATE_SLIDER: i32 = 2001;
-const ID_FOREGROUND_COLOR_BUTTON: i32 = 2002;
-const ID_BACKGROUND_COLOR_BUTTON: i32 = 2003;
-const ID_AUTOSTART_CHECKBOX: i32 = 2004;
-const ID_APPLY_BUTTON: i32 = 2005;
-const ID_CANCEL_BUTTON: i32 = 2006;
+/// Menu item IDs for context menu
+const MENU_ID_EXIT: u32 = 1001;
+const MENU_ID_SETTINGS: u32 = 1002;
 
-// Global variable for the current icon to release it later
-// Needed to avoid memory leaks when creating new icons
+/// Global variable for the current icon to release it later
+/// Needed to avoid memory leaks when creating new icons
 static mut CURRENT_ICON: HICON = HICON(0 as *mut c_void);
 
-// Settings window handle
+/// Settings window handle
 static mut SETTINGS_HWND: HWND = HWND(std::ptr::null_mut());
 
-// Helper function for safe access to CURRENT_ICON
+/// Helper function for safe access to CURRENT_ICON
+#[inline]
 unsafe fn get_current_icon() -> HICON {
     CURRENT_ICON
 }
 
-// Helper function for safe setting of CURRENT_ICON
+/// Helper function for safe setting of CURRENT_ICON
+#[inline]
 unsafe fn set_current_icon(icon: HICON) {
     CURRENT_ICON = icon;
 }
 
-// Create settings window
-unsafe fn create_settings_window(hinstance: HINSTANCE) -> HWND {
+/// Creates a settings window
+/// 
+/// # Arguments
+/// * `hinstance` - Instance handle for the window
+/// 
+/// # Returns
+/// * `HWND` - Handle to the created settings window
+/// 
+/// # Safety
+/// This function is unsafe because it calls Windows API functions
+unsafe fn create_settings_window(hinstance: HINSTANCE) -> Result<HWND, windows::core::Error> {
     let class_name = w!("MPR_Settings");
     
     // Register settings window class
@@ -78,7 +85,10 @@ unsafe fn create_settings_window(hinstance: HINSTANCE) -> HWND {
         hbrBackground: HBRUSH(GetStockObject(WHITE_BRUSH).0),
         ..Default::default()
     };
-    RegisterClassW(&wc);
+    
+    if RegisterClassW(&wc) == 0 {
+        return Err(windows::core::Error::from_win32());
+    }
     
     // Create settings window
     let hwnd = CreateWindowExW(
@@ -88,12 +98,23 @@ unsafe fn create_settings_window(hinstance: HINSTANCE) -> HWND {
         WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX,
         CW_USEDEFAULT, CW_USEDEFAULT, 400, 300,
         None, None, hinstance, None,
-    ).unwrap();
+    )?;
     
-    hwnd
+    Ok(hwnd)
 }
 
-// Settings window procedure
+/// Settings window procedure
+/// 
+/// This function processes all messages for the settings window
+/// 
+/// # Arguments
+/// * `hwnd` - Handle to the settings window
+/// * `msg` - Message ID
+/// * `wparam` - Additional parameter 1
+/// * `lparam` - Additional parameter 2
+/// 
+/// # Returns
+/// * `LRESULT` - Result of message processing
 extern "system" fn settings_wndproc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
     unsafe {
         match msg {
@@ -101,20 +122,21 @@ extern "system" fn settings_wndproc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam
                 // Close button clicked - destroy window
                 let _ = DestroyWindow(hwnd);
                 SETTINGS_HWND = HWND(std::ptr::null_mut());
+                LRESULT(0)
             }
             
             WM_DESTROY => {
                 // Window is destroyed
                 SETTINGS_HWND = HWND(std::ptr::null_mut());
+                LRESULT(0)
             }
             
             _ => {
                 // Forward all other messages to the standard window procedure
-                return DefWindowProcW(hwnd, msg, wparam, lparam);
+                DefWindowProcW(hwnd, msg, wparam, lparam)
             }
         }
     }
-    LRESULT(0)  // Successfully processed
 }
 
 /// Creates a 24x24 pixel icon with the specified coordinates
@@ -125,16 +147,32 @@ extern "system" fn settings_wndproc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam
 /// * `y_pos` - Y-coordinate of the mouse
 /// 
 /// # Returns
-/// * `HICON` - Handle to the created icon
-unsafe fn create_icon_with_cursor_position(x_pos: u32, y_pos: u32) -> HICON {
+/// * `Result<HICON, windows::core::Error>` - Handle to the created icon or error
+/// 
+/// # Safety
+/// This function is unsafe because it calls Windows API functions
+unsafe fn create_icon_with_cursor_position(x_pos: u32, y_pos: u32) -> Result<HICON, windows::core::Error> {
     // Get device context for the screen
     let hdc = GetDC(None);
+    if hdc.is_invalid() {
+        return Err(windows::core::Error::from_win32());
+    }
     
     // Create compatible memory device context
     let memdc = CreateCompatibleDC(hdc);
+    if memdc.is_invalid() {
+        ReleaseDC(None, hdc);
+        return Err(windows::core::Error::from_win32());
+    }
     
     // Create 24x24 bitmap
     let bmp = CreateCompatibleBitmap(hdc, 24, 24);
+    if bmp.is_invalid() {
+        let _ = DeleteDC(memdc);
+        let _ = ReleaseDC(None, hdc);
+        return Err(windows::core::Error::from_win32());
+    }
+    
     let old_bmp = SelectObject(memdc, bmp);
 
     // Fill background black
@@ -163,7 +201,7 @@ unsafe fn create_icon_with_cursor_position(x_pos: u32, y_pos: u32) -> HICON {
             for (y, row) in glyph.iter().enumerate() {
                 for (x, &pixel) in row.iter().enumerate() {
                     if pixel == 1 {
-                        SetPixel(memdc, start_x + x as i32, start_y + y as i32, text_color);
+                        let _ = SetPixel(memdc, start_x + x as i32, start_y + y as i32, text_color);
                     }
                 }
             }
@@ -177,15 +215,16 @@ unsafe fn create_icon_with_cursor_position(x_pos: u32, y_pos: u32) -> HICON {
         hbmColor: bmp,          // Color bitmap
         ..Default::default() 
     };
-    let hicon = CreateIconIndirect(&mut ii).unwrap();
+    
+    let hicon = CreateIconIndirect(&mut ii)?;
 
     // Clean up resources
     SelectObject(memdc, old_bmp);
     let _ = DeleteObject(bmp);
     let _ = DeleteDC(memdc);
-    ReleaseDC(None, hdc);
+    let _ = ReleaseDC(None, hdc);
 
-    hicon
+    Ok(hicon)
 }
 
 /// Window procedure - processes all messages for the window
@@ -205,32 +244,34 @@ extern "system" fn wndproc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM)
             WM_TIMER => {
                 // Timer message every 100ms - poll mouse position and update icon
                 let mut pt = POINT::default();
-                let _ = GetCursorPos(&mut pt);
+                if GetCursorPos(&mut pt).is_ok() {
+                    // Create new icon with current coordinates
+                    if let Ok(new_icon) = create_icon_with_cursor_position(pt.x as u32, pt.y as u32) {
+                        // Release old icon to avoid memory leaks
+                        let current_icon = get_current_icon();
+                        if !current_icon.is_invalid() {
+                            let _ = DestroyIcon(current_icon);
+                        }
+                        set_current_icon(new_icon);
 
-                // Create new icon with current coordinates
-                let new_icon = create_icon_with_cursor_position(pt.x as u32, pt.y as u32);
-
-                // Release old icon to avoid memory leaks
-                let current_icon = get_current_icon();
-                if !current_icon.is_invalid() {
-                    let _ = DestroyIcon(current_icon);
+                        // Update tray icon with the new icon
+                        let mut nid = NOTIFYICONDATAW {
+                            cbSize: size_of::<NOTIFYICONDATAW>() as u32,
+                            hWnd: hwnd, uID: 1,
+                            uFlags: NIF_ICON,  // Only update icon
+                            hIcon: get_current_icon(),
+                            ..Default::default()
+                        };
+                        let _ = Shell_NotifyIconW(NIM_MODIFY, &mut nid);
+                    }
                 }
-                set_current_icon(new_icon);
-
-                // Update tray icon with the new icon
-                let mut nid = NOTIFYICONDATAW {
-                    cbSize: size_of::<NOTIFYICONDATAW>() as u32,
-                    hWnd: hwnd, uID: 1,
-                    uFlags: NIF_ICON,  // Only update icon
-                    hIcon: get_current_icon(),
-                    ..Default::default()
-                };
-                let _ = Shell_NotifyIconW(NIM_MODIFY, &mut nid);
+                LRESULT(0)
             }
             
             WM_DESTROY => {
                 // Window is destroyed - terminate program
                 PostQuitMessage(0);
+                LRESULT(0)
             }
             
             TRAY_MESSAGE => {
@@ -239,30 +280,34 @@ extern "system" fn wndproc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM)
                     WM_RBUTTONUP => {
                         // Right-click on tray icon - show context menu
                         let mut pt = POINT::default();
-                        let _ = GetCursorPos(&mut pt);
-                        
-                        // Create popup menu
-                        let hmenu = CreatePopupMenu().unwrap();
-                        let _ = AppendMenuW(hmenu, MF_STRING, 1002, w!("Settings..."));
-                        let _ = AppendMenuW(hmenu, MF_STRING, 1001, w!("Exit"));
-                        
-                        // Bring window to foreground (important for menu display)
-                        let _ = SetForegroundWindow(hwnd);
-                        
-                        // Display menu at current mouse position
-                        let _ = TrackPopupMenu(hmenu, TPM_LEFTALIGN | TPM_RIGHTBUTTON, pt.x, pt.y, 0, hwnd, None);
-                        
-                        // Clean up menu
-                        let _ = DestroyMenu(hmenu);
+                        if GetCursorPos(&mut pt).is_ok() {
+                            // Create popup menu
+                            if let Ok(hmenu) = CreatePopupMenu() {
+                                let _ = AppendMenuW(hmenu, MF_STRING, MENU_ID_SETTINGS as usize, w!("Settings..."));
+                                let _ = AppendMenuW(hmenu, MF_STRING, MENU_ID_EXIT as usize, w!("Exit"));
+                                
+                                // Bring window to foreground (important for menu display)
+                                let _ = SetForegroundWindow(hwnd);
+                                
+                                // Display menu at current mouse position
+                                let _ = TrackPopupMenu(hmenu, TPM_LEFTALIGN | TPM_RIGHTBUTTON, pt.x, pt.y, 0, hwnd, None);
+                                
+                                // Clean up menu
+                                let _ = DestroyMenu(hmenu);
+                            }
+                        }
+                        LRESULT(0)
                     }
                     
                     WM_LBUTTONUP => {
                         // Left-click on tray icon (optional: show/hide window)
                         // Currently not implemented
+                        LRESULT(0)
                     }
                     
                     _ => {
                         // Ignore other mouse events
+                        LRESULT(0)
                     }
                 }
             }
@@ -270,39 +315,43 @@ extern "system" fn wndproc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM)
             WM_COMMAND => {
                 // Process menu selection
                 match wparam.0 as u32 {
-                    1001 => {
+                    MENU_ID_EXIT => {
                         // "Exit" selected - terminate program
                         PostQuitMessage(0);
+                        LRESULT(0)
                     }
-                    1002 => {
+                    MENU_ID_SETTINGS => {
                         // "Settings..." selected - open settings window
-                        let hinstance = GetModuleHandleW(None).unwrap();
-                        let hwnd = create_settings_window(hinstance.into());
-                        let _ = ShowWindow(hwnd, SW_SHOW);
-                        let _ = SetForegroundWindow(hwnd);
-                        SETTINGS_HWND = hwnd;
+                        if let Ok(hinstance) = GetModuleHandleW(None) {
+                            if let Ok(hwnd) = create_settings_window(hinstance.into()) {
+                                let _ = ShowWindow(hwnd, SW_SHOW);
+                                let _ = SetForegroundWindow(hwnd);
+                                SETTINGS_HWND = hwnd;
+                            }
+                        }
+                        LRESULT(0)
                     }
                     _ => {
                         // Ignore other menu items
+                        LRESULT(0)
                     }
                 }
             }
             
             _ => {
                 // Forward all other messages to the standard window procedure
-                return DefWindowProcW(hwnd, msg, wparam, lparam);
+                DefWindowProcW(hwnd, msg, wparam, lparam)
             }
         }
     }
-    LRESULT(0)  // Successfully processed
 }
 
 /// Main function of the program
 /// Creates a hidden window and a tray icon that displays the current mouse position
-fn main() {
+fn main() -> Result<(), Box<dyn std::error::Error>> {
     unsafe {
         // Get module handle of the current application
-        let hinstance = GetModuleHandleW(None).unwrap();
+        let hinstance = GetModuleHandleW(None)?;
         
         // Unique class name for the window
         let class_name = w!("MPR");
@@ -314,14 +363,17 @@ fn main() {
             lpszClassName: class_name,   // Class name
             ..Default::default()          // Set all other fields to default values
         };
-        RegisterClassW(&wc);
+        
+        if RegisterClassW(&wc) == 0 {
+            return Err("Failed to register window class".into());
+        }
 
         // Create hidden window (0x0 size, not displayed)
         // The window is necessary to receive Windows messages
         let hwnd = CreateWindowExW(
             Default::default(), class_name, w!(""), WS_OVERLAPPEDWINDOW,
             0, 0, 0, 0, None, None, hinstance, None,
-        ).unwrap();
+        )?;
 
         // Prepare tray icon data structure
         let mut nid = NOTIFYICONDATAW {
@@ -334,7 +386,8 @@ fn main() {
         };
 
         // Create initial icon with coordinates (0,0)
-        set_current_icon(create_icon_with_cursor_position(0, 0));
+        let initial_icon = create_icon_with_cursor_position(0, 0)?;
+        set_current_icon(initial_icon);
         nid.hIcon = get_current_icon();
         
         // Set tooltip text for the tray icon
@@ -343,10 +396,14 @@ fn main() {
         nid.szTip[..utf16_chars.len()].copy_from_slice(&utf16_chars);
 
         // Add tray icon to system tray
-        let _ = Shell_NotifyIconW(NIM_ADD, &mut nid);
+        if !Shell_NotifyIconW(NIM_ADD, &mut nid).as_bool() {
+            return Err("Failed to add tray icon".into());
+        }
         
         // Start timer to poll mouse position every 100ms
-        SetTimer(hwnd, 1, 100, None);
+        if SetTimer(hwnd, 1, 100, None) == 0 {
+            return Err("Failed to set timer".into());
+        }
 
         // Main message loop - processes all Windows messages
         let mut msg = MSG::default();
@@ -361,5 +418,7 @@ fn main() {
         if !current_icon.is_invalid() {
             let _ = DestroyIcon(current_icon);
         }
+        
+        Ok(())
     }
 }

@@ -1,0 +1,112 @@
+name: Build Windows Executable
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+  release:
+    types: [ published ]
+  workflow_dispatch: # Allows manual triggering
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      
+    - name: Install Rust
+      uses: dtolnay/rust-toolchain@stable
+      with:
+        components: rustfmt, clippy
+        
+    - name: Cache cargo registry
+      uses: actions/cache@v3
+      with:
+        path: |
+          ~/.cargo/registry
+          ~/.cargo/git
+          target
+        key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+        restore-keys: |
+          ${{ runner.os }}-cargo-
+          
+    - name: Install rcedit
+      run: |
+        # Download and install rcedit for icon embedding
+        $rceditUrl = "https://github.com/electron/rcedit/releases/download/v1.1.1/rcedit-x64.exe"
+        $rceditPath = "$env:TEMP\rcedit.exe"
+        Invoke-WebRequest -Uri $rceditUrl -OutFile $rceditPath
+        # Add to PATH for this session
+        $env:PATH += ";$env:TEMP"
+        
+    - name: Run cargo check
+      run: cargo check --release
+      
+    - name: Run cargo clippy
+      run: cargo clippy --release -- -D warnings
+      
+    - name: Run cargo fmt check
+      run: cargo fmt -- --check
+      
+    - name: Build release binary
+      run: |
+        cargo build --release
+        if ($LASTEXITCODE -ne 0) {
+          Write-Error "Cargo build failed"
+          exit 1
+        }
+        
+    - name: Verify executable exists
+      run: |
+        $exePath = "target\release\mpr.exe"
+        if (-not (Test-Path $exePath)) {
+          Write-Error "Executable not found at $exePath"
+          exit 1
+        }
+        Write-Host "Executable found at $exePath"
+        
+    - name: Attach icon to executable
+      run: |
+        $exePath = "target\release\mpr.exe"
+        $iconPath = "logo.ico"
+        
+        if (-not (Test-Path $iconPath)) {
+          Write-Warning "Icon file not found at $iconPath, skipping icon attachment"
+        } else {
+          Write-Host "Attaching icon to executable..."
+          rcedit "$exePath" --set-icon "$iconPath"
+          if ($LASTEXITCODE -ne 0) {
+            Write-Error "Failed to attach icon"
+            exit 1
+          }
+          Write-Host "Icon attached successfully"
+        }
+        
+    - name: Get file size
+      run: |
+        $exePath = "target\release\mpr.exe"
+        $fileSize = (Get-Item $exePath).Length
+        $fileSizeMB = [math]::Round($fileSize / 1MB, 2)
+        Write-Host "Executable size: $fileSizeMB MB"
+        
+    - name: Upload build artifact
+      uses: actions/upload-artifact@v3
+      with:
+        name: mpr-windows-${{ github.sha }}
+        path: target/release/mpr.exe
+        retention-days: 30
+        
+    - name: Create release asset (on release)
+      if: github.event_name == 'release'
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ github.event.release.upload_url }}
+        asset_path: target/release/mpr.exe
+        asset_name: mpr-windows.exe
+        asset_content_type: application/octet-stream
+

@@ -63,14 +63,7 @@ This project is intended for private use.
 
 - Coordinates are limited to 4 digits (0-9999)
 - Only works under Windows
-- No configuration options
-- No persistence of settings
-
-## Troubleshooting
-
-**Tray icon doesn't appear**: Check if the tool is running as administrator
-**Program won't start**: Make sure all Windows updates are installed
-**High CPU load**: The tool updates every 100ms - this is normal
+- Minimal configuration options
 
 ## Support
 
